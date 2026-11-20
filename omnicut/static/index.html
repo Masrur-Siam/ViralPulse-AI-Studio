@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniCut Studio - Direct YouTube & AI Video Suite</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-logo">✂️</div>
+                <div class="brand-text">
+                    <h2>OmniCut</h2>
+                    <span>AI Video Suite</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="split-stitch">
+                    <span class="icon">✂️</span>
+                    <span>Split & Stitch</span>
+                </button>
+                <button class="nav-item" data-tab="compare">
+                    <span class="icon">⚔️</span>
+                    <span>Dual Compare</span>
+                </button>
+                <button class="nav-item" data-tab="voiceover">
+                    <span class="icon">🎙️</span>
+                    <span>Voiceover (TTS)</span>
+                </button>
+                <button class="nav-item" data-tab="shorts">
+                    <span class="icon">📱</span>
+                    <span>9:16 Shorts</span>
+                </button>
+                <button class="nav-item" data-tab="library">
+                    <span class="icon">📂</span>
+                    <span>Library</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="system-status">
+                    <span class="status-dot"></span>
+                    <span>Direct YouTube Ready</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="content-area">
+            <!-- Toast Alerts -->
+            <div id="toast-container" class="toast-container"></div>
+
+            <!-- ============================================== -->
+            <!-- TAB 1: SPLIT & STITCH (AUTO CUT & MERGE)       -->
+            <!-- ============================================== -->
+            <section id="tab-split-stitch" class="tab-pane active">
+                <header class="page-header">
+                    <div>
+                        <h1>Auto Split & Multi-Part Stitcher</h1>
+                        <p>Paste any YouTube link directly or upload a file — cut multiple highlight parts and merge them seamlessly.</p>
+                    </div>
+                </header>
+
+                <div class="grid-2col">
+                    <div class="card">
+                        <h3>1. YouTube Link or Upload Video</h3>
+                        
+                        <div class="form-group">
+                            <label>Paste YouTube / Twitch / Video Link:</label>
+                            <div class="url-input-group">
+                                <input type="text" id="url-stitch" placeholder="https://www.youtube.com/watch?v=...">
+                                <button id="btn-load-yt-stitch" class="btn btn-primary">Load Link</button>
+                            </div>
+                        </div>
+
+                        <div class="or-divider"><span>OR UPLOAD LOCAL FILE</span></div>
+
+                        <div class="upload-dropzone compact" id="dropzone-stitch">
+                            <input type="file" id="file-stitch" accept="video/*" hidden>
+                            <p><strong>Click to upload</strong> or drag & drop</p>
+                        </div>
+
+                        <!-- Video Info Card -->
+                        <div id="stitch-source-info" class="yt-preview-box hidden">
+                            <img id="stitch-yt-thumb" src="" alt="Thumbnail" class="yt-thumb">
+                            <div class="yt-details">
+                                <h4 id="stitch-source-title">Video Title</h4>
+                                <span id="stitch-source-meta" class="meta-tag">00:00</span>
+                            </div>
+                        </div>
+
+                        <div class="video-preview-wrapper hidden" id="wrapper-stitch-preview">
+                            <video id="preview-stitch" controls></video>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header-flex">
+                            <h3>2. Cut Segments & Merge</h3>
+                            <button id="btn-auto-detect" class="btn btn-sm btn-accent">⚡ Auto Detect Active Scenes</button>
+                        </div>
+
+                        <div class="segments-container">
+                            <table class="segments-table">
+                                <thead>
+                                    <tr>
+                                        <th>Part</th>
+                                        <th>Start (sec)</th>
+                                        <th>End (sec)</th>
+                                        <th>Duration</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="segments-list">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                            <button id="btn-add-segment" class="btn btn-outline btn-block">+ Add Segment</button>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 18px;">
+                            <label>Attach Voiceover (Optional):</label>
+                            <select id="stitch-voice-select" class="form-control">
+                                <option value="">-- None (Keep Original Audio) --</option>
+                            </select>
+                        </div>
+
+                        <button id="btn-render-stitch" class="btn btn-primary btn-lg btn-block" style="margin-top: 15px;">
+                            🚀 Cut & Stitch into One Video
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Result Card -->
+                <div id="result-stitch-card" class="card result-card hidden" style="margin-top: 24px;">
+                    <h3>✨ Stitched Video Output</h3>
+                    <div class="result-body">
+                        <video id="result-stitch-video" controls class="result-player"></video>
+                        <div class="result-actions">
+                            <a id="btn-download-stitch" href="#" download class="btn btn-success btn-lg">⬇️ Download Video</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================== -->
+            <!-- TAB 2: DUAL VIDEO COMPARE (GAME / SCENE)       -->
+            <!-- ============================================== -->
+            <section id="tab-compare" class="tab-pane">
+                <header class="page-header">
+                    <div>
+                        <h1>Dual Video / Game Comparison</h1>
+                        <p>Paste two YouTube links or upload videos to compare them side-by-side or top-and-bottom with custom labels.</p>
+                    </div>
+                </header>
+
+                <div class="grid-2col">
+                    <!-- Video A -->
+                    <div class="card">
+                        <h3>Video A (First Item)</h3>
+                        <div class="form-group">
+                            <label>YouTube Link A:</label>
+                            <input type="text" id="url-comp-a" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+                        </div>
+                        <div class="or-divider"><span>OR UPLOAD</span></div>
+                        <div class="upload-dropzone compact" id="dropzone-comp-a">
+                            <input type="file" id="file-comp-a" accept="video/*" hidden>
+                            <p id="label-file-comp-a">Upload Video A File</p>
+                        </div>
+                        <div class="form-group" style="margin-top: 12px;">
+                            <label>Label on Video A:</label>
+                            <input type="text" id="label-comp-a" class="form-control" value="Game A (e.g. GTA 5 / Old)">
+                        </div>
+                        <div class="form-group">
+                            <label>Start Timestamp (seconds):</label>
+                            <input type="number" id="start-comp-a" class="form-control" value="0" min="0" step="0.5">
+                        </div>
+                    </div>
+
+                    <!-- Video B -->
+                    <div class="card">
+                        <h3>Video B (Second Item)</h3>
+                        <div class="form-group">
+                            <label>YouTube Link B:</label>
+                            <input type="text" id="url-comp-b" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+                        </div>
+                        <div class="or-divider"><span>OR UPLOAD</span></div>
+                        <div class="upload-dropzone compact" id="dropzone-comp-b">
+                            <input type="file" id="file-comp-b" accept="video/*" hidden>
+                            <p id="label-file-comp-b">Upload Video B File</p>
+                        </div>
+                        <div class="form-group" style="margin-top: 12px;">
+                            <label>Label on Video B:</label>
+                            <input type="text" id="label-comp-b" class="form-control" value="Game B (e.g. GTA 6 / New)">
+                        </div>
+                        <div class="form-group">
+                            <label>Start Timestamp (seconds):</label>
+                            <input type="number" id="start-comp-b" class="form-control" value="0" min="0" step="0.5">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparison Layout Options -->
+                <div class="card" style="margin-top: 20px;">
+                    <h3>Comparison Settings</h3>
+                    <div class="grid-3col">
+                        <div class="form-group">
+                            <label>Layout Style:</label>
+                            <select id="compare-layout" class="form-control">
+                                <option value="top-bottom" selected>📱 Top / Bottom (9:16 Vertical for Shorts/TikTok)</option>
+                                <option value="side-by-side">🖥️ Side-by-Side (16:9 Landscape for YouTube)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Duration (Seconds):</label>
+                            <input type="number" id="compare-duration" class="form-control" value="15" min="3" max="180" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Audio Handling:</label>
+                            <select id="compare-audio" class="form-control">
+                                <option value="both" selected>Mix Both Audios</option>
+                                <option value="a">Keep Video A Audio Only</option>
+                                <option value="b">Keep Video B Audio Only</option>
+                                <option value="mute">Mute Audio</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button id="btn-render-compare" class="btn btn-primary btn-lg btn-block" style="margin-top: 15px;">
+                        ⚔️ Render Comparison Video Directly from Links
+                    </button>
+                </div>
+
+                <!-- Comparison Output -->
+                <div id="result-compare-card" class="card result-card hidden" style="margin-top: 24px;">
+                    <h3>✨ Rendered Comparison Output</h3>
+                    <div class="result-body">
+                        <video id="result-compare-video" controls class="result-player"></video>
+                        <div class="result-actions">
+                            <a id="btn-download-compare" href="#" download class="btn btn-success btn-lg">⬇️ Download Comparison</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================== -->
+            <!-- TAB 3: AI VOICEOVER (TTS)                      -->
+            <!-- ============================================== -->
+            <section id="tab-voiceover" class="tab-pane">
+                <header class="page-header">
+                    <div>
+                        <h1>AI Voiceover & Narration Studio</h1>
+                        <p>Generate natural, human-like voiceovers in English, Bengali, Hindi and overlay them directly onto videos.</p>
+                    </div>
+                </header>
+
+                <div class="grid-2col">
+                    <div class="card">
+                        <h3>1. Generate Voiceover</h3>
+                        <div class="form-group">
+                            <label>Select Neural Voice:</label>
+                            <select id="tts-voice-select" class="form-control">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Script / Text to Speak:</label>
+                            <textarea id="tts-text" class="form-control" rows="5" placeholder="Type or paste your commentary, hook, or narration here in English or বাংলা..."></textarea>
+                        </div>
+
+                        <div class="grid-2col" style="gap: 15px;">
+                            <div class="form-group">
+                                <label>Speaking Speed:</label>
+                                <select id="tts-rate" class="form-control">
+                                    <option value="-20%">Slow (-20%)</option>
+                                    <option value="+0%" selected>Normal (1.0x)</option>
+                                    <option value="+15%">Fast (+15%)</option>
+                                    <option value="+30%">Very Fast (+30%)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Pitch:</label>
+                                <select id="tts-pitch" class="form-control">
+                                    <option value="-5Hz">Deep (-5Hz)</option>
+                                    <option value="+0Hz" selected>Natural (+0Hz)</option>
+                                    <option value="+5Hz">High (+5Hz)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button id="btn-generate-tts" class="btn btn-primary btn-block" style="margin-top: 15px;">
+                            🎙️ Generate Voiceover
+                        </button>
+
+                        <div id="tts-player-wrapper" class="hidden" style="margin-top: 20px;">
+                            <p><strong>Generated Voice Preview:</strong></p>
+                            <audio id="tts-audio-player" controls style="width: 100%;"></audio>
+                            <a id="btn-download-tts" href="#" download class="btn btn-sm btn-outline" style="margin-top: 8px;">⬇️ Download Audio</a>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>2. Attach Voiceover to Video (or YouTube)</h3>
+                        <p class="subtext">Overlay your generated voice onto any video with background music ducking.</p>
+
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label>YouTube Link or Upload Video:</label>
+                            <input type="text" id="url-tts-video" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+                        </div>
+
+                        <div class="or-divider"><span>OR UPLOAD</span></div>
+
+                        <div class="upload-dropzone compact" id="dropzone-tts-video">
+                            <input type="file" id="file-tts-video" accept="video/*" hidden>
+                            <p id="label-tts-video">Upload Target Video File</p>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label>Background Video Audio Volume:</label>
+                            <input type="range" id="tts-bg-volume" min="0" max="1" step="0.05" value="0.25" class="range-slider">
+                            <span id="tts-bg-vol-label" class="subtext">25% (Ducked for clear voice)</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Voiceover Audio Volume:</label>
+                            <input type="range" id="tts-voice-volume" min="0.5" max="2" step="0.1" value="1.0" class="range-slider">
+                            <span id="tts-voice-vol-label" class="subtext">100%</span>
+                        </div>
+
+                        <button id="btn-overlay-tts" class="btn btn-secondary btn-block" style="margin-top: 20px;">
+                            🎬 Overlay Voice onto Video
+                        </button>
+
+                        <div id="result-voiced-card" class="hidden" style="margin-top: 20px;">
+                            <h4>Voiced Video Preview:</h4>
+                            <video id="result-voiced-video" controls style="width: 100%; border-radius: 8px; margin-top: 8px;"></video>
+                            <a id="btn-download-voiced" href="#" download class="btn btn-success btn-block" style="margin-top: 10px;">⬇️ Download Voiced Video</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================== -->
+            <!-- TAB 4: 9:16 SHORTS CREATOR                     -->
+            <!-- ============================================== -->
+            <section id="tab-shorts" class="tab-pane">
+                <header class="page-header">
+                    <div>
+                        <h1>Instant 9:16 Vertical Shorts Creator</h1>
+                        <p>Paste any YouTube link and convert it straight into a vertical TikTok/Shorts clip without downloading.</p>
+                    </div>
+                </header>
+
+                <div class="grid-2col">
+                    <div class="card">
+                        <h3>YouTube Link or Video</h3>
+                        <div class="form-group">
+                            <label>YouTube Video Link:</label>
+                            <input type="text" id="url-shorts" class="form-control" placeholder="https://www.youtube.com/watch?v=...">
+                        </div>
+
+                        <div class="or-divider"><span>OR UPLOAD</span></div>
+
+                        <div class="upload-dropzone compact" id="dropzone-shorts">
+                            <input type="file" id="file-shorts" accept="video/*" hidden>
+                            <p id="label-shorts-file">Upload Local Video File</p>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label>Style Mode:</label>
+                            <select id="shorts-mode" class="form-control">
+                                <option value="blur-background" selected>✨ Blurred Background Fill (Viral Standard)</option>
+                                <option value="center-crop">🔍 Center Crop</option>
+                            </select>
+                        </div>
+
+                        <div class="grid-2col" style="gap: 15px;">
+                            <div class="form-group">
+                                <label>Start Timestamp (sec):</label>
+                                <input type="number" id="shorts-start" class="form-control" value="0" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Duration (sec):</label>
+                                <input type="number" id="shorts-duration" class="form-control" value="30" min="5" max="180">
+                            </div>
+                        </div>
+
+                        <button id="btn-render-short" class="btn btn-primary btn-block btn-lg" style="margin-top: 20px;">
+                            ✨ Generate 9:16 Vertical Short
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <h3>Vertical Short Preview</h3>
+                        <div id="shorts-preview-container" class="shorts-container-placeholder">
+                            <p>Enter a YouTube link or file and click Generate to see the 9:16 preview here.</p>
+                        </div>
+                        <div id="shorts-result-container" class="hidden">
+                            <video id="shorts-result-video" controls class="shorts-player"></video>
+                            <a id="btn-download-short" href="#" download class="btn btn-success btn-block" style="margin-top: 15px;">⬇️ Download 9:16 Short</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================== -->
+            <!-- TAB 5: MEDIA LIBRARY                           -->
+            <!-- ============================================== -->
+            <section id="tab-library" class="tab-pane">
+                <header class="page-header">
+                    <div>
+                        <h1>Media Library & Exports</h1>
+                        <p>View, preview, and download all your generated videos and cached YouTube media.</p>
+                    </div>
+                    <button id="btn-refresh-library" class="btn btn-secondary">🔄 Refresh</button>
+                </header>
+
+                <div class="card">
+                    <h3>Generated Outputs</h3>
+                    <div id="outputs-grid" class="media-grid">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 20px;">
+                    <h3>Uploaded & Downloaded Sources</h3>
+                    <div id="uploads-grid" class="media-grid">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Loading Modal -->
+    <div id="loading-modal" class="modal-backdrop hidden">
+        <div class="modal-box">
+            <div class="spinner"></div>
+            <h3 id="modal-title">Processing Video...</h3>
+            <p id="modal-desc">Fetching YouTube stream and rendering with FFmpeg. Please wait...</p>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
