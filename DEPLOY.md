@@ -1,6 +1,6 @@
-# Putting PeakCut on a server
+# Putting ViralPulse AI Studio on a server
 
-PeakCut runs as three containers on one Linux server: the app, PostgreSQL, and Caddy (which handles HTTPS).
+ViralPulse AI Studio runs as three containers on one Linux server: the app, PostgreSQL, and Caddy (which handles HTTPS).
 
 ## What you need
 
@@ -14,7 +14,7 @@ PeakCut runs as three containers on one Linux server: the app, PostgreSQL, and C
 
 1. Copy this folder to the server (or `git clone` it there).
 2. `cp .env.example .env` and fill it in: the AI lines, `PEAKCUT_DOMAIN`, `POSTGRES_PASSWORD`, and
-   `COMPOSE_PROFILES=own-https` if the server is PeakCut's alone. Put key files, if you use files, in `./secrets/`.
+   `COMPOSE_PROFILES=own-https` if the server is ViralPulse's alone. Put key files, if you use files, in `./secrets/`.
 3. `docker compose up -d --build`
    The first start downloads the speech model (about 480 MB) and creates the database tables.
 4. Open `https://your-domain` and sign up. With Docker, accounts are on (`PEAKCUT_ACCOUNTS=1`), so everyone signs in.
@@ -37,7 +37,7 @@ them in `.env`, see `.env.example`). The redirect address to register is shown i
   Creator and Business accounts. Until Meta reviews the app, only accounts added as testers can connect. Instagram
   fetches each clip from a one-hour signed link on your site, so the site needs a public https address.
 - **TikTok** (TikTok for Developers): an app with Login Kit and the Content Posting API (Direct Post), scopes
-  `user.info.basic` and `video.publish`. Until TikTok audits the app, clips are posted as private (PeakCut does
+  `user.info.basic` and `video.publish`. Until TikTok audits the app, clips are posted as private (ViralPulse does
   this by itself and says so on the account).
 
 Instagram and TikTok only accept https redirect addresses.

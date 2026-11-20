@@ -1,6 +1,6 @@
-# PeakCut on one server: the app, PostgreSQL, and Caddy for HTTPS.
+# ViralPulse AI Studio on one server: the app, PostgreSQL, and Caddy for HTTPS.
 # Copy .env.example to .env, fill it in, then:  docker compose up -d --build
-# A server of its own: also set COMPOSE_PROFILES=own-https in .env. A shared server: see deploy/nginx-peakcut.conf.
+# A server of its own: also set COMPOSE_PROFILES=own-https in .env. A shared server: see deploy/nginx-viralpulse.conf.
 services:
   db:
     image: postgres:16-alpine
