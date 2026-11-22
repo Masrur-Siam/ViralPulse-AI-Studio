@@ -337,6 +337,14 @@ def delete(jid):
     return bool(job)
 
 
+def clear_all():
+    """Clear all in-memory jobs and notify connected sessions."""
+    with _lock:
+        _jobs.clear()
+        _by_user.clear()
+    ctx.bump()
+
+
 def request_render(jid, cid, changes: dict):
     job = _jobs[jid]
     clip = next(c for c in job["clips"] if c["id"] == cid)

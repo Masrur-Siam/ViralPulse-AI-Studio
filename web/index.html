@@ -942,8 +942,7 @@ const send = (path, body, method = "POST") => api(path, {method, headers:{"Conte
 function toast(msg, kind = "") {
   if (!msg) return;
   const t = document.createElement("div"); t.className = "toast " + kind; t.textContent = msg;
-  if (kind === "bad") { const r = document.createElement("button"); r.className = "rep"; r.textContent = "Report"; r.onclick = () => { t.remove(); openFeedback("bug", msg); }; t.append(r); }
-  $("#toasts").append(t); setTimeout(() => t.remove(), kind === "bad" ? 7000 : 3200);
+  $("#toasts").append(t); setTimeout(() => t.remove(), kind === "bad" ? 5000 : 3200);
 }
 const cache = new WeakMap();
 function put(el, html) { if (el && cache.get(el) !== html) { cache.set(el, html); el.innerHTML = html; } }
@@ -1189,11 +1188,13 @@ async function markRead() { try { await send("/api/notifications/read"); S.statu
 function openAcct() {
   const p = $("#acctpop");
   if (!p.hidden) return closePops();
-  p.innerHTML = `<button data-act="go" data-v="settings">${ic("cog")}Settings</button>
-    <button data-act="go" data-v="usage">${ic("chart")}AI usage</button>
+  p.innerHTML = `<button data-act="go" data-v="settings" data-tab="ai">${ic("bolt")}AI Settings &amp; Key</button>
+    <button data-act="go" data-v="settings">${ic("cog")}Studio Settings</button>
     <div style="height:1px;background:var(--line);margin:4px 0"></div>
-    <button data-act="resettour" style="color:var(--brand-deep)">${ic("play")}Reset &amp; Tour</button>
-    <button data-act="factoryreset" style="color:#F87171">${ic("trash")}Fresh Clean (Factory Reset)</button>`;
+    <button data-act="factoryreset" style="color:#6EE7B7">${ic("trash")}Clean Videos &amp; Cache (Keep API Key)</button>
+    <button data-act="resettour" style="color:var(--brand-deep)">${ic("play")}Reset &amp; Tour (Fresh Install)</button>
+    <div style="height:1px;background:var(--line);margin:4px 0"></div>
+    <button data-act="shutdown" style="color:#F87171">${ic("signout")}Exit Studio (Turn off)</button>`;
   openPop(p, $("[data-act=acctmenu]"));
 }
 document.addEventListener("click", e => { if (!e.target.closest(".pop, [data-act=bell], [data-act=acctmenu]")) closePops(); });
@@ -1293,15 +1294,14 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
       </div>
       <div class="dev-copy">&copy; 2026 Masrur Siam. All Rights Reserved.</div>
     </div>`;
-  put($("#foot"), (k ? `<button class="ai-card ${S.view === "usage" ? "on" : ""}" data-act="go" data-v="usage" title="${k.ready ? `AI: ${esc(k.provider || "ready")}, ${k.today_calls || 0} calls today` : "The AI is not set up"}">
-      <span class="ai-ic">${ic("bolt")}</span><span class="ai-tx"><small>AI</small><b>${k.ready ? esc(k.provider || "Ready") : "Not set up"}</b></span>${k.ready ? `<span class="ai-n">${(k.today_calls || 0).toLocaleString()} today</span>` : ""}</button>` : "") +
+  put($("#foot"), (k ? `<button class="ai-card" data-act="go" data-v="settings" data-tab="ai" title="${k.ready ? `AI: ${esc(k.provider || "Ready")} (${esc(k.model || "")})` : "Click to configure AI Key"}">
+      <span class="ai-ic">${ic("bolt")}</span><span class="ai-tx"><small>AI Engine</small><b>${k.ready ? esc(k.provider || "Ready") : "Offline (Loudness)"}</b></span>${k.ready ? `<span class="ai-n">${esc(k.model || "Active")}</span>` : ""}</button>` : "") +
     (S.status.user ? `<div class="me"><button class="me-btn" data-act="acctmenu" aria-haspopup="menu" aria-expanded="false">${meAvatar(S.status.user)}
       <span class="who"><b>Settings</b><span>AI Key, Bypass, Storage</span></span></button>
       <button class="icon-btn bell" data-act="bell" title="Notifications" aria-label="Notifications${S.status.unread ? `, ${S.status.unread} new` : ""}" aria-haspopup="dialog">${ic("bell")}${S.status.unread ? `<span class="dotn">${S.status.unread > 9 ? "9+" : S.status.unread}</span>` : ""}</button></div>` : "") + devFooter);
   const c = creator();
   const recording = S.creators.filter(x => x.live_job).length;
-  let title = {overview:"Home", library:"All videos", settings:"Settings", usage:"AI usage"}[S.view] || "", sub = "", act = "";
-  if (S.view === "usage") sub = "What the AI has been used for.";
+  let title = {overview:"Home", library:"All videos", settings:"Settings"}[S.view] || "", sub = "", act = "";
   if (S.view === "overview") sub = `${greeting()}. ${S.creators.length} creator${S.creators.length === 1 ? "" : "s"}${recording ? `, ${recording} recording now` : ""}.`;
   if (S.view === "library") sub = "Every video and recording, across all creators.";
   if (S.view === "settings") sub = "Your AI key, anti-copyright bypass, and connected apps.";
@@ -1315,9 +1315,9 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
       `<button class="tabbtn ${S.ctab === k ? "on" : ""}" data-act="tab" data-t="${k}" role="tab" aria-selected="${S.ctab === k}">${ic(i)}${l}${n ? `<span class="n">${n > 99 ? "99+" : n}</span>` : ""}</button>`).join("");
     const liveBtn = c.live_job ? `<button class="btn danger" data-act="stoplive" data-j="${esc(c.live_job)}">${ic("stop")}Stop recording</button>`
                                : `<button class="btn primary" data-act="golive"><span class="rdot"></span>${liveOn(c).length ? "Record live stream" : "Start recording"}</button>`;
-    act = liveBtn + ` <button class="btn sm" data-act="resettour" title="Reset state and restart interactive tour">${ic("play")}<span>Reset &amp; Tour</span></button> <button class="btn sm danger-outline" data-act="factoryreset" title="Deep clean all cached videos, temporary cuts, and reset studio">${ic("trash")}<span>Fresh Clean</span></button>`;
+    act = liveBtn + ` <button class="btn sm" data-act="resettour" title="Wipe all data and restart fresh tour (Like new install)">${ic("play")}<span>Reset &amp; Tour</span></button> <button class="btn sm danger-outline" data-act="factoryreset" title="Clean cached videos &amp; garbage (Keeps API key)">${ic("trash")}<span>Clean</span></button>`;
   } else {
-    act = `<button class="btn sm" data-act="resettour" title="Reset state and restart interactive tour">${ic("play")}<span>Reset &amp; Tour</span></button> <button class="btn sm danger-outline" data-act="factoryreset" title="Deep clean all cached videos, temporary cuts, and reset studio">${ic("trash")}<span>Fresh Clean</span></button>`;
+    act = `<button class="btn sm" data-act="resettour" title="Wipe all data and restart fresh tour (Like new install)">${ic("play")}<span>Reset &amp; Tour</span></button> <button class="btn sm danger-outline" data-act="factoryreset" title="Clean cached videos &amp; garbage (Keeps API key)">${ic("trash")}<span>Clean</span></button>`;
   }
   const devPill = `<div class="dev-pill" title="ViralPulse AI Studio by Masrur Siam">
     <span class="dev-tag">Developer</span>
@@ -1337,16 +1337,14 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
   const upBar = up && up.latest !== upSeen ? `<div class="vb" role="status">${ic("up")}<span>${up.restart ? "<b>The new version is downloaded.</b> Close ViralPulse AI and start it again to use it." : `A new version of ViralPulse AI is out${up.behind ? `: <b>${up.behind} update${up.behind === 1 ? "" : "s"}</b> since yours` : ""}.`}</span>
     <button class="btn sm primary" data-act="updhow">${up.restart ? "What's new" : "How to update"}</button><button class="btn sm ghost" data-act="updlater" aria-label="Hide until the next version">Later</button></div>` : "";
   const toolBar = S.status.no_ffmpeg ? `<div class="vb" role="alert">${ic("warn")}<span><b>ViralPulse AI can't make clips yet: ffmpeg isn't installed on this computer.</b> Open a terminal, run <code>winget install Gyan.FFmpeg</code> (Mac: <code>brew install ffmpeg</code>, Linux: <code>sudo apt install ffmpeg</code>), then close ViralPulse AI and start it again.</span></div>` : "";
-  const aiBar = !toolBar && S.status.ai?.problem && me?.is_admin && S.view !== "settings" ? `<div class="vb" role="status">${ic("warn")}<span><b>The AI isn't answering.</b> ${esc(S.status.ai.problem)} Until then, clips are picked by loudness.</span><button class="btn sm primary" data-act="go" data-v="settings" data-tab="ai">Open AI settings</button></div>` : "";
   const diskBar = !toolBar && S.status.disk_full && S.view !== "settings" ? `<div class="vb" role="alert">${ic("warn")}<span><b>The drive ViralPulse AI saves to is almost full, so it can't take new videos.</b> Free up space on it, or move ViralPulse AI's folder to a bigger drive.</span>${me?.is_admin ? `<button class="btn sm primary" data-act="go" data-v="settings" data-tab="storage">Open Storage</button>` : ""}</div>` : "";
-  put($("#vbanner"), toolBar ? toolBar : diskBar ? diskBar : aiBar ? aiBar : upBar ? upBar : me && me.verified === false ? `<div class="vb" role="status">${ic("warn")}<span>Confirm your email to start clipping. We sent a link to <b>${esc(me.email)}</b>.</span><button class="btn sm" data-act="resendverify">Send a new link</button></div>`
-    : kk && kk.ready === false && S.view !== "usage" ? `<div class="vb" role="status">${ic("bolt")}<span>${me?.is_admin ? "Add your AI key to let the AI pick clips and write titles. Until then, clips are picked by loudness." : "The AI isn't set up on this server yet, so clips are picked by loudness."}</span>${me?.is_admin && S.view !== "settings" ? `<button class="btn sm primary" data-act="go" data-v="settings" data-tab="ai">${ic("plus")}Add AI key</button>` : ""}</div>` : "");
+  put($("#vbanner"), toolBar ? toolBar : diskBar ? diskBar : upBar ? upBar : "");
   put($("#tpic"), pic); $("#tpic").classList.toggle("live", !!(c && (c.live_job || liveOn(c).length)));
   put($("#utabs"), tabs); moveInd(); $(".topbar").classList.toggle("tabbed", !!tabs);
   put($("#title"), `<span>${esc(title)}</span>`); put($("#subtitle"), subHtml ?? esc(sub)); put($("#actions"), act);
 }
 
-const ROUTES = {overview: "", library: "videos", settings: "settings", usage: "usage"};
+const ROUTES = {overview: "", library: "videos", settings: "settings"};
 function pathFor(v, tab) {
   if (v.startsWith("c:")) return `/app/creators/${encodeURIComponent(v.slice(2))}${tab && tab !== "clips" ? "/" + tab : ""}`;
   if (v === "settings") return "/app/settings" + (tab ? "/" + tab : "");
@@ -1379,7 +1377,7 @@ function go(v, tab, fromHistory) {
   if (v === "overview") view.innerHTML = `<div id="ov"></div>`;
   else if (v === "library") view.innerHTML = `<div id="add"></div><div id="jobs"></div>`;
   else if (v === "settings") view.innerHTML = `<div id="sform"></div>`;
-  else if (v === "usage") { view.innerHTML = `<div id="usage"></div>`; loadUsage(); }
+  else if (v === "usage") { return go("settings", "ai"); }
   else view.innerHTML = `<div id="stream"></div><div id="cbody"></div>`;   // the live player stays put across tabs: no restart, no rebuffer
   if ($("#add")) drawAdd(v === "overview" ? "hero" : "compact");
   if (v === "overview" && window.GradientASCII) { try { window._gaStop = GradientASCII($("#appAscii"), {colors: ["#ffb27a", "#ffffff", "#ffd2ae", "#ffe0c2", "#fff1e6"], shape: "horizon", lightMode: true, cellSize: 16, density: 0.8, glyphOpacity: 0.26, gradientOpacity: 0.32, glow: 0.06, grain: 0.06, mouseInteraction: false, clickEffect: "none"}); } catch {} }
@@ -1791,7 +1789,7 @@ function jobHtml(j) {
         <label class="selck" title="Select this video and its clips"><input type="checkbox" data-sel="j:${j.id}" ${sel().has("j:" + j.id) ? "checked" : ""} aria-label="Select this video"></label>`}</div></div>
     ${busy ? `<div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div><p class="sub">${esc(j.stage)} · ${Math.round(j.progress * 100)}%</p>` : ""}
     ${j.status === "done" && !j.clips.length ? `<p class="sub">${esc(j.stage)}</p>` : ""}
-    ${j.error ? `<div class="err">${esc(j.error)}<button class="rep" data-act="report" data-ctx="${esc("Video failed: " + (j.title || j.source.name || "") + " | " + j.error)}">Report this</button></div>` : ""}${j.ai?.note ? `<p class="sub">${esc(j.ai.note)}</p>` : ""}
+    ${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}${j.ai?.note ? `<p class="sub">${esc(j.ai.note)}</p>` : ""}
     ${j.clips.length ? `<div class="grid">${j.clips.map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
 }
 /* ---- selecting several videos and clips: delete or download them together */
@@ -1999,51 +1997,6 @@ function drawOverview() {
       : `<p class="help">Nothing queued or posted yet.</p>`}</div>`);
 }
 
-/* ============================================================ AI usage */
-async function loadUsage() {
-  try { S.usage = await api("/api/usage"); } catch { return; }
-  S.status.ai = {...S.status.ai, ready: S.usage.ready, provider: S.usage.provider, model: S.usage.model, today_calls: S.usage.today_calls, today_tokens: S.usage.today_tokens};
-  drawShell(); drawUsage();
-}
-function tokenChart(daily) {
-  const W = 1000, H = 220, pl = 64, pb = 26, pt = 10, n = daily.length, ch = H - pt - pb;
-  const peak = Math.max(...daily.map(d => d.tokens), 1), top = peak * 1.15, cw = (W - pl) / n, bw = Math.min(14, cw - 6);
-  const y = v => pt + ch * (1 - v / top);
-  let g = "";
-  for (let i = 0; i <= 3; i++) { const v = top * i / 3; g += `<line class="gl" x1="${pl}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="${pl - 8}" y="${y(v) + 4}" text-anchor="end">${fmtK(Math.round(v))}</text>`; }
-  daily.forEach((d, i) => {
-    const cx = pl + i * cw + cw / 2, lab = new Date(d.day + "T12:00").toLocaleDateString([], {day:"numeric", month:"short"});
-    g += `<g><title>${lab}: ${d.tokens.toLocaleString()} tokens in ${d.calls} call${d.calls === 1 ? "" : "s"}</title><rect class="b1" x="${cx - bw / 2}" y="${y(d.tokens)}" width="${bw}" height="${Math.max(0, ch * d.tokens / top)}" rx="3"/></g>`;
-    if ((n - 1 - i) % 5 === 0) g += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${i === n - 1 ? "Today" : lab}</text>`;
-  });
-  const none = daily.every(d => !d.tokens) ? `<text class="none" x="${(W + pl) / 2}" y="${pt + ch / 2}" text-anchor="middle">No AI used in the last 30 days</text>` : "";
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="AI tokens used per day, last 30 days">${g}${none}</svg>`;
-}
-function hbars(rows) {
-  const total = rows.reduce((a, r) => a + r[1], 0) || 1;
-  return rows.length ? `<div class="hbar">${rows.map(r => `<div class="hbar-row"><div class="top"><span>${esc(r[0])}</span><span>${fmtK(r[1])} tokens · ${r[2]} call${r[2] === 1 ? "" : "s"}</span></div>
-    <div class="track"><i style="width:${Math.max(2, r[1] / total * 100)}%"></i></div></div>`).join("")}</div>` : `<p class="help">Nothing yet.</p>`;
-}
-function drawUsage() {
-  const k = S.usage, box = $("#usage"); if (!k || !box) return;
-  box.innerHTML = `${k.ready ? "" : `<div class="note">${ic("warn")}<span>${S.status.user?.is_admin ? "No AI key is set, so clips are picked by loudness only. Add your key under Settings, AI." : "The AI isn't set up on this server yet, so clips are picked by loudness."}</span></div>`}
-    <div class="tiles five" style="margin-top:${k.ready ? 0 : 16}px">
-      <div class="tile"><i>${ic("bolt")}</i><b>${k.ready ? esc(k.provider || "Ready") : "Not set up"}</b><span>${k.ready && k.model ? esc(k.model) : "AI service"}</span></div>
-      <div class="tile"><i>${ic("clock")}</i><b>${(k.today_calls || 0).toLocaleString()}</b><span>AI calls today</span></div>
-      <div class="tile"><i>${ic("chart")}</i><b>${fmtK(k.today_tokens)}</b><span>Tokens today</span></div>
-      <div class="tile"><i>${ic("scissors")}</i><b>${(k.calls_total || 0).toLocaleString()}</b><span>AI calls in total</span></div>
-      <div class="tile"><i>${ic("receipt")}</i><b>${fmtK(k.tokens_total)}</b><span>Tokens in total</span></div></div>
-    <div class="card"><div class="card-head"><div><h2>Tokens per day</h2><p class="sub">Last 30 days. Your AI provider bills you for these directly.</p></div></div>${tokenChart(k.daily || [])}</div>
-    <div class="split">
-      <div class="card"><div class="card-head"><div><h2>What it was used for</h2><p class="sub">By kind of AI work, all time</p></div></div>${hbars(k.by_purpose || [])}</div>
-      <div class="card"><div class="card-head"><div><h2>By creator</h2><p class="sub">All time</p></div></div>${hbars(k.by_creator || [])}</div>
-    </div>
-    <div class="card"><div class="card-head"><div><h2>Recent AI activity</h2><p class="sub">The latest ${(k.recent || []).length} AI calls</p></div></div>
-      ${(k.recent || []).length ? `<div class="scroll"><table><tr><th>When</th><th>What</th><th>Creator</th><th>Video</th><th class="num">Tokens</th></tr>
-      ${k.recent.map(u => `<tr><td class="sub">${when(u.t)}</td><td>${esc(u.purpose)}</td><td>${esc(u.creator_name || "None")}</td><td class="sub">${esc(u.where || "")}</td><td class="num">${(u.tokens || 0).toLocaleString()}</td></tr>`).join("")}</table></div>`
-      : `<p class="help">No AI calls yet.</p>`}</div>`;
-}
-
 /* ============================================================ settings */
 // With sign-in off there is no profile or password to manage. The AI section is for whoever runs the server.
 const setTabs = () => [
@@ -2072,10 +2025,16 @@ async function drawSettings() {
     if (tab === "ai") {
       const k = S.ai = await api("/api/ai");
       body.innerHTML = `<section class="set-sec"><h2>AI Engine &amp; API Key</h2><p class="help">ViralPulse AI uses an AI model to detect high-engagement hooks, audience heatmaps, and generate viral YouTube SEO titles, hashtags, and subtitles. Your API key is kept 100% locally on your computer.</p>
-          <div class="ai-state">${k.ready ? `<span class="pill ok">${ic("check")}Ready</span><span class="sub">${esc(k.label)} · ${esc(k.models[0] || "")}</span>` : `<span class="pill warn">Not set up</span><span class="sub">Choose a service, paste your key and pick a model.</span>`}</div>
+          <div class="ai-state" style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,255,255,0.03);border:1px solid var(--line-2);border-radius:10px;margin-bottom:16px">
+            ${k.has_key ? `<span class="pill ok">${ic("check")}Key Saved &amp; Ready</span>` : `<span class="pill warn">No Key (Offline Loudness)</span>`}
+            <span class="sub" style="font-size:13px">
+              ${k.has_key ? `Active Provider: <b>${esc(k.label)}</b> · Key in use: <code>${esc(k.key_masked || "••••••••" + k.key_hint)}</code> · Model: <code>${esc(k.models[0] || "")}</code>`
+                          : "No API key is configured. Clips are generated using local loudness & speech detection."}
+            </span>
+          </div>
           <div class="ai-form">
             <label class="f">AI service<select id="ai_provider">${k.providers.map(x => `<option value="${esc(x.id)}" ${x.id === k.provider ? "selected" : ""}>${esc(x.label)}</option>`).join("")}</select></label>
-            <label class="f">Key<input id="ai_key" type="password" autocomplete="off" spellcheck="false" placeholder="${k.has_key ? "•••••••••••••••• (API Key is saved locally)" : "Paste your API key"}"><span class="hint" id="ai_keyhint"></span></label>
+            <label class="f">Key<input id="ai_key" type="password" autocomplete="off" spellcheck="false" placeholder="${k.has_key ? `Saved: ${k.key_masked || "••••••••"}` : "Paste your API key"}"><span class="hint" id="ai_keyhint"></span></label>
             <label class="f" id="ai_basewrap">Address<input id="ai_base" value="${esc(k.base_url || "")}" spellcheck="false"><span class="hint">Where the service answers. Only needed for a custom service.</span></label>
             <label class="f">Model<span class="with"><input id="ai_model" list="ai_models" value="${esc(k.models.join(", "))}" spellcheck="false"><button class="btn" type="button" data-act="aimodels">Find models</button></span>
               <datalist id="ai_models"></datalist><span class="hint">A fast, inexpensive model is the right choice. Add a second one after a comma to fall back on.</span></label>
@@ -2085,7 +2044,7 @@ async function drawSettings() {
           </div>
           <div class="row" style="margin-top:20px;gap:10px">
             <button class="btn primary" data-act="aisave">${ic("check")}Save and test</button>
-            ${k.has_key || k.ready ? `<button class="btn danger-outline" data-act="wipeaikey">${ic("trash")}Remove API Key</button>` : ""}
+            ${k.has_key ? `<button class="btn danger-outline" data-act="wipeaikey">${ic("trash")}Permanently Remove Key</button>` : ""}
             ${k.ready ? `<button class="btn" data-act="aitest">${ic("bolt")}Test again</button>` : ""}
           </div></section>`;
       aiHints();
@@ -2387,40 +2346,59 @@ document.addEventListener("click", async e => {
     }
     if (a === "resettour") {
       closePops();
-      try { localStorage.removeItem("viralpulse_tour_seen"); } catch {}
-      await api("/api/tour/reset", {method:"POST"}).catch(() => {});
-      toast("Starting interactive studio tour…", "info");
-      startTour();
+      if (!await ask("Reset & Tour (Full Fresh Install)?", "⚠️ This will delete ALL data, downloaded videos, cache, and saved API keys. The studio will be completely reset to a pristine first-time installation state and launch the onboarding tour.", "Reset Everything", true)) return;
+      toast("Resetting studio & wiping all data…", "info");
+      try {
+        await api("/api/tour/reset", {method:"POST"});
+        try { localStorage.removeItem("viralpulse_tour_seen"); } catch {}
+        toast("Studio reset to fresh install state! Starting tour…", "ok");
+        setTimeout(() => location.reload(), 1000);
+      } catch (err) {
+        toast("Reset failed: " + err.message, "bad");
+      }
       return;
     }
     if (a === "factoryreset") {
       closePops();
-      if (!await ask("Deep Clean / Factory Reset?", "⚠️ This will delete ALL downloaded raw videos, temporary cuts, intermediate files, caches, and garbage from your PC. ViralPulse AI Studio will be reset to a pristine clean state.", "Deep Clean Now", true)) return;
-      toast("Cleaning up all garbage and resetting studio…", "info");
+      if (!await ask("Clean Videos & Cache?", "This will delete all processed videos, cuts, temporary files, and garbage cache. Your AI API Key will be safely PRESERVED.", "Clean Now", true)) return;
+      toast("Cleaning up video cache and garbage files…", "info");
       try {
         const res = await api("/api/factory-reset", {method:"POST"});
-        try { localStorage.removeItem("viralpulse_tour_seen"); } catch {}
-        toast(`🧹 Deep Clean Complete! Freed ${res.freed_mb} MB of disk space. Studio is fresh.`, "ok");
-        setTimeout(() => { location.reload(); }, 1200);
+        S.jobs = [];
+        render();
+        toast(`🧹 Clean Complete! Freed ${res.freed_mb} MB. API Key was preserved safely.`, "ok");
+        await tick();
       } catch (err) {
-        toast("Clean error: " + err.message, "bad");
+        toast("Clean failed: " + err.message, "bad");
       }
       return;
     }
     if (a === "wipeaikey") {
       closePops();
-      if (!await ask("Remove AI API Key?", "This wipes your saved API key from local storage. The tool will fall back to loudness-based clipping until a new key is saved.", "Remove Key", true)) return;
+      if (!await ask("Permanently Remove AI Key?", "This permanently deletes your saved API key from this machine. ViralPulse will switch to offline loudness-based clipping.", "Remove Key", true)) return;
       b.disabled = true;
       try {
         await api("/api/ai/key", {method:"DELETE"});
         S.status = await api("/api/status");
         drawShell();
         await drawSettings();
-        toast("API Key removed from local storage.", "ok");
+        toast("API Key permanently removed. Tool is in offline loudness mode.", "ok");
       } catch (err) {
         toast("Error removing key: " + err.message, "bad");
       } finally {
         b.disabled = false;
+      }
+      return;
+    }
+    if (a === "shutdown") {
+      closePops();
+      if (!await ask("Turn off ViralPulse AI Studio?", "This will shut down the local server and close the terminal window.", "Turn Off", true)) return;
+      toast("Shutting down ViralPulse AI Studio…", "info");
+      try {
+        await api("/api/shutdown", {method:"POST"});
+        document.body.innerHTML = `<div style="display:grid;place-items:center;height:100vh;background:#0B0F19;color:#94A3B8;font-family:sans-serif;text-align:center"><div><h2 style="color:#fff;margin-bottom:8px">ViralPulse AI Studio is turned off</h2><p>You can close this browser tab safely.</p></div></div>`;
+      } catch (err) {
+        toast("Shutdown error: " + err.message, "bad");
       }
       return;
     }
@@ -2444,9 +2422,14 @@ document.addEventListener("click", async e => {
     }
     if (a === "delclip") {
       if (!await ask("Delete this clip?", "The clip is removed for good. The video and its other clips stay.", "Delete clip", true)) return;
-      await api(`/api/jobs/${d.j}/clips/${encodeURIComponent(d.c)}`, {method:"DELETE"});
-      const j = jobOf(d.j); if (j) j.clips = j.clips.filter(c => c.id !== d.c);
-      render(); toast("Clip deleted", "ok"); return tick();
+      try {
+        await api(`/api/jobs/${d.j}/clips/${encodeURIComponent(d.c)}`, {method:"DELETE"});
+        const j = jobOf(d.j); if (j) j.clips = (j.clips || []).filter(c => c.id !== d.c);
+        render(); toast("Clip deleted", "ok"); await tick();
+      } catch (err) {
+        toast("Could not delete clip: " + err.message, "bad");
+      }
+      return;
     }
     if (a === "dlall") return zipDownload((jobOf(d.j)?.clips || []).filter(c => c.status === "done").map(c => d.j + "." + c.id));
     if (a === "seldl") return zipDownload(selClips());
@@ -2460,17 +2443,27 @@ document.addEventListener("click", async e => {
       const {jobsSel, clipsSel} = selParts();
       const what = [jobsSel.length ? (jobsSel.length === 1 ? "1 video with all its clips" : `${jobsSel.length} videos with all their clips`) : "", clipsSel.length ? `${clipsSel.length} clip${clipsSel.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" and ");
       if (!await ask("Delete what you selected?", `This removes ${what} for good. It cannot be undone.`, "Delete", true)) return;
-      const r = await send("/api/bulk/delete", {videos: jobsSel, clips: clipsSel});
-      sel().clear(); await tick(); render();
-      return toast(`Deleted ${r.videos} video${r.videos === 1 ? "" : "s"} and ${r.clips} clip${r.clips === 1 ? "" : "s"}` + (r.skipped ? `. ${r.skipped} still being made were left alone.` : ""), "ok");
+      try {
+        const r = await send("/api/bulk/delete", {videos: jobsSel, clips: clipsSel});
+        sel().clear(); await tick(); render();
+        return toast(`Deleted ${r.videos} video${r.videos === 1 ? "" : "s"} and ${r.clips} clip${r.clips === 1 ? "" : "s"}` + (r.skipped ? `. ${r.skipped} still being made were left alone.` : ""), "ok");
+      } catch (err) {
+        toast("Delete failed: " + err.message, "bad");
+      }
+      return;
     }
     if (a === "delcreator") {
       const c = creator(); if (!c) return;
       const n = S.jobs.filter(j => j.creator === c.id).length;
       if (!await askTyped(`Delete ${c.name}?`, `This removes the creator, their settings${n ? `, and their ${n} video${n === 1 ? "" : "s"} with all the clips` : ""} for good. It cannot be undone.`, c.name, "Delete creator")) return;
-      await api(`/api/creators/${encodeURIComponent(c.id)}`, {method:"DELETE"});
-      S.creators = S.creators.filter(x => x.id !== c.id); S.jobs = S.jobs.filter(j => j.creator !== c.id);
-      go("overview"); toast("Creator deleted", "ok"); return tick();
+      try {
+        await api(`/api/creators/${encodeURIComponent(c.id)}`, {method:"DELETE"});
+        S.creators = S.creators.filter(x => x.id !== c.id); S.jobs = S.jobs.filter(j => j.creator !== c.id);
+        go("overview"); toast("Creator deleted", "ok"); return tick();
+      } catch (err) {
+        toast("Delete failed: " + err.message, "bad");
+      }
+      return;
     }
     if (a === "delaccount") {
       const me = S.status.user;
@@ -2481,7 +2474,14 @@ document.addEventListener("click", async e => {
     }
     if (a === "deljob") {
       if (!await ask("Delete this video?", "The video and all of its clips are permanently deleted. This cannot be undone.", "Delete", true)) return;
-      await api(`/api/jobs/${d.j}`, {method:"DELETE"}); toast("Deleted"); return tick();
+      try {
+        await api(`/api/jobs/${d.j}`, {method:"DELETE"});
+        S.jobs = S.jobs.filter(j => j.id !== d.j);
+        render(); toast("Video deleted", "ok"); await tick();
+      } catch (err) {
+        toast("Could not delete video: " + err.message, "bad");
+      }
+      return;
     }
     if (a === "chadd") {
       const k = d.p, v = $("#chan_" + k)?.value.trim();
@@ -2610,25 +2610,6 @@ $("#main").addEventListener("scroll", () => $(".topbar").classList.toggle("stuck
   }
   checkNew(true);
   setInterval(async () => { try { S.status = await api("/api/status"); drawShell(); if (S.view === "overview") drawOverview(); checkNew(); } catch {} }, 15000);
-
-  // Desktop Heartbeat & Auto-Shutdown
-  const pingHb = () => {
-    try {
-      if (navigator.sendBeacon) navigator.sendBeacon("/api/heartbeat");
-      else fetch("/api/heartbeat", {method:"POST", keepalive:true}).catch(() => {});
-    } catch {}
-  };
-  pingHb();
-  setInterval(pingHb, 3500);
-
-  const shutdownApp = () => {
-    try {
-      if (navigator.sendBeacon) navigator.sendBeacon("/api/shutdown");
-      else fetch("/api/shutdown", {method:"POST", keepalive:true}).catch(() => {});
-    } catch {}
-  };
-  window.addEventListener("pagehide", shutdownApp);
-  window.addEventListener("beforeunload", shutdownApp);
 })();
 </script>
 </body>

@@ -34,10 +34,16 @@ def delete_clip(jid: str, cid: str) -> bool:
     d = Path(job["dir"])
     for name in (clip.get("file"), clip.get("cover")):
         if name:
-            (d / "clips" / Path(str(name)).name).unlink(missing_ok=True)
+            try:
+                (d / "clips" / Path(str(name)).name).unlink(missing_ok=True)
+            except OSError:
+                pass
     src = clip.get("src")
     if src and Path(src).parent == d:              # the piece of video fetched just for this clip
-        Path(src).unlink(missing_ok=True)
+        try:
+            Path(src).unlink(missing_ok=True)
+        except OSError:
+            pass
     ctx.bump()
     return True
 

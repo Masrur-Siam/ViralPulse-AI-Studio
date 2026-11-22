@@ -94,18 +94,25 @@ def ready() -> bool:
 
 def public() -> dict:
     """What the settings page may see. The key itself never leaves the server: only whether there is one, and
-    its last four characters so the owner can tell which key it is."""
+    its masked preview so the owner can tell which key it is."""
     c = current()
-    return {"provider": c["provider"], "models": c["models"], "base_url": c["base_url"], "has_key": bool(c["key"]),
-            "key_hint": c["key"][-4:] if len(c["key"]) >= 12 else "", "ready": ready(), "label": label(),
+    k_raw = c.get("key") or ""
+    if len(k_raw) >= 12:
+        masked = k_raw[:4] + "••••••••" + k_raw[-4:]
+    elif k_raw:
+        masked = "••••••••" + k_raw[-2:]
+    else:
+        masked = ""
+    return {"provider": c["provider"], "models": c["models"], "base_url": c["base_url"], "has_key": bool(k_raw),
+            "key_hint": k_raw[-4:] if len(k_raw) >= 4 else "", "key_masked": masked, "ready": ready(), "label": label(),
             "saved_here": bool(_from_dashboard().get("provider")),
             "providers": [{"id": k, "label": v[0], "address": v[1], "needs_key": k not in NO_KEY, "key_url": v[3], "example": v[4]}
                           for k, v in PROVIDERS.items()]}
 
 
 def save(provider_id: str, model_ids, address: str = "", new_key=None) -> dict:
-    """Save the choice made in the dashboard. `new_key` None keeps the key that is already there (the page never
-    has it to send back); an empty string removes it."""
+    """Save the choice made in the dashboard. `new_key` None keeps the key that is already there;
+    an empty string removes it."""
     p = ALIASES.get(str(provider_id or "").strip().lower(), str(provider_id or "").strip().lower())
     if p not in PROVIDERS:
         raise ValueError("Choose one of the AI services in the list.")
@@ -123,8 +130,6 @@ def save(provider_id: str, model_ids, address: str = "", new_key=None) -> dict:
         raise ValueError("A custom service needs its address, for example http://127.0.0.1:1234/v1")
     old = current()
     k = old["key"] if new_key is None and old["provider"] == p else str(new_key or "").strip()[:400]
-    if not k and p not in NO_KEY:
-        raise ValueError("Paste the key for this service.")
     with _lock:
         f = _file()
         tmp = f.with_suffix(".tmp")
@@ -135,6 +140,21 @@ def save(provider_id: str, model_ids, address: str = "", new_key=None) -> dict:
             pass
         tmp.replace(f)
         _saved["at"] = None
+    clear_problem()
+    return public()
+
+
+def remove_key() -> dict:
+    """Permanently delete saved key and ai.json file."""
+    with _lock:
+        f = _file()
+        try:
+            f.unlink(missing_ok=True)
+        except OSError:
+            pass
+        _saved["at"] = None
+        _saved["data"] = {}
+    clear_problem()
     return public()
 
 

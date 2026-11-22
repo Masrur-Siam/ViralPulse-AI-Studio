@@ -434,54 +434,21 @@ def favicon():
     return RedirectResponse("/brand/viralpulse-favicon.svg", 308)
 
 
-# ================================================================ auto-shutdown & heartbeat
-_last_heartbeat = [time.time()]
-_first_heartbeat_seen = [False]
-_shutdown_cancel = [False]
-
-@app.post("/api/heartbeat")
-def heartbeat_ping():
-    _last_heartbeat[0] = time.time()
-    _first_heartbeat_seen[0] = True
-    _shutdown_cancel[0] = True
-    return {"ok": True}
-
+# ================================================================ manual studio exit & shutdown
 @app.post("/api/shutdown")
 def shutdown_app():
     if not config.ACCOUNTS:
-        _shutdown_cancel[0] = False
         def _terminate():
-            time.sleep(3.0)  # Grace period for page refresh
-            if not _shutdown_cancel[0]:
-                print("\n[ViralPulse] Application window closed. Shutting down background server cleanly...")
-                os._exit(0)
+            time.sleep(0.5)
+            print("\n[ViralPulse] Exit requested. Shutting down server cleanly...")
+            os._exit(0)
         threading.Thread(target=_terminate, daemon=True).start()
         return {"ok": True, "message": "Shutting down"}
     return {"ok": False}
 
-def _watchdog_auto_shutdown():
-    time.sleep(25)  # Grace period on startup for browser to open
-    while True:
-        time.sleep(3)
-        if not config.ACCOUNTS and _first_heartbeat_seen[0]:
-            if time.time() - _last_heartbeat[0] > 12:
-                print("\n[ViralPulse] All browser tabs closed. Shutting down background server cleanly...")
-                os._exit(0)
-
-threading.Thread(target=_watchdog_auto_shutdown, daemon=True).start()
-
 
 # ================================================================ reset & deep cleanup
-@app.post("/api/tour/reset")
-def reset_tour(request: Request):
-    accounts.save_settings({"tour_done": False})
-    ctx.bump()
-    return {"ok": True}
-
-@app.post("/api/factory-reset")
-def factory_reset(request: Request):
-    if config.ACCOUNTS:
-        _admin(request)
+def _clean_filesystem_garbage() -> int:
     freed_bytes = 0
     users_dir = config.USERS_DIR
     if users_dir.is_dir():
@@ -525,10 +492,33 @@ def factory_reset(request: Request):
             conn.execute(db.usage.delete())
     except Exception:
         pass
+    jobs.clear_all()
+    usage.forget_all()
+    return freed_bytes
+
+
+@app.post("/api/factory-reset")
+def factory_reset(request: Request):
+    """Deep clean: deletes videos, clips, cache, tmp, db data, BUT PRESERVES AI KEY."""
+    if config.ACCOUNTS:
+        _admin(request)
+    freed_bytes = _clean_filesystem_garbage()
+    ctx.bump()
+    freed_mb = round(freed_bytes / (1024 * 1024), 2)
+    return {"ok": True, "freed_mb": freed_mb, "message": "All media and garbage cleaned. API key preserved."}
+
+
+@app.post("/api/tour/reset")
+def reset_tour(request: Request):
+    """Full fresh install reset: wipes everything INCLUDING API KEY and resets tour."""
+    if config.ACCOUNTS:
+        _admin(request)
+    ai.remove_key()
+    freed_bytes = _clean_filesystem_garbage()
     accounts.save_settings({"tour_done": False})
     ctx.bump()
     freed_mb = round(freed_bytes / (1024 * 1024), 2)
-    return {"ok": True, "freed_mb": freed_mb}
+    return {"ok": True, "freed_mb": freed_mb, "message": "Studio reset to pristine state like first time install."}
 
 
 # ================================================================ sign up, sign in, sign out
@@ -1388,10 +1378,10 @@ def ai_put(request: Request, body: dict = Body(...)):
 
 
 @app.delete("/api/ai/key")
+@app.post("/api/ai/clear")
 def ai_delete_key(request: Request):
     _admin(request)
-    cur = ai.public()
-    ai.save(cur.get("provider", "groq"), cur.get("models", ["llama-3.3-70b-versatile"]), cur.get("base_url") or "", "")
+    ai.remove_key()
     usage.forget_all()
     ctx.bump()
     return {"ok": True, "message": "API key successfully removed"}
