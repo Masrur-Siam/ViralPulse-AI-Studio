@@ -139,10 +139,6 @@ def _tidy(c, s, e):
 
     words = c.get("highlight_words") if isinstance(c.get("highlight_words"), list) else []
     title = roman.to_roman(_text(c.get("title"), 120))
-    if not title or len(title) < 5:
-        title = "Incredible Viral Moment 🔥 #Shorts"
-    elif "#Shorts" not in title and "#shorts" not in title and len(title) <= 72:
-        title = f"{title} #Shorts"
 
     hook = roman.to_roman(_text(c.get("hook"), 60)).upper()
     if not hook:
@@ -369,7 +365,7 @@ def fallback_by_loudness(db, words, n, max_len, duration, heatmap=None):
     return picks
 
 
-def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=15, max_len=60, log=print, heatmap=None):
+def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=15, max_len=60, log=print, heatmap=None, user_prompt=""):
     z = loud_zscore(db)
     lines = make_lines(words, z, heatmap=heatmap)
     if not lines:
@@ -381,11 +377,13 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
         windows.append((t, min(duration, t + WINDOW_SEC)))
         t += WINDOW_SEC - OVERLAP_SEC
     per_window = max(2, min(8, int(np.ceil(max_clips * 1.5 / len(windows))) + 1))
+    custom_inst = f"\nUSER INSTRUCTION: {_safe(user_prompt, 300)}\nHeavily prioritize and pick moments matching this instruction!\n" if user_prompt else ""
     for a, b in windows:
         chunk = [l for l in lines if a <= l["s"] < b]
         if len(chunk) < 3:
             continue
         prompt = (HEAD.format(title=_safe(title) or "unknown", uploader=_safe(uploader) or "unknown", n=per_window)
+                  + custom_inst
                   + RULES.format(min_len=min_len, max_len=max_len, transcript=_fmt(chunk)))
         try:
             out, used_model, spent = ask_ai(prompt, purpose="Video: finding clips")

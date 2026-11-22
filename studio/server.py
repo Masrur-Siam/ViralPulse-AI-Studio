@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -484,12 +485,9 @@ def _clean_filesystem_garbage() -> int:
             pass
     try:
         with db.engine.begin() as conn:
-            conn.execute(db.jobs.delete())
-            conn.execute(db.clips.delete())
-            conn.execute(db.creators.delete())
-            conn.execute(db.posts.delete())
             conn.execute(db.notices.delete())
             conn.execute(db.usage.delete())
+            conn.execute(db.feedback.delete())
     except Exception:
         pass
     jobs.clear_all()
@@ -515,7 +513,10 @@ def reset_tour(request: Request):
         _admin(request)
     ai.remove_key()
     freed_bytes = _clean_filesystem_garbage()
-    accounts.save_settings({"tour_done": False})
+    try:
+        accounts.save_settings({"tour_done": False})
+    except Exception:
+        pass
     ctx.bump()
     freed_mb = round(freed_bytes / (1024 * 1024), 2)
     return {"ok": True, "freed_mb": freed_mb, "message": "Studio reset to pristine state like first time install."}
@@ -806,6 +807,8 @@ def create_from_link(body: dict = Body(...)):
     _need_verified()
     _quota()
     _throttle("newjob:" + ctx.uid(), 30, 600)
+    if not config.ai_ready() and not os.environ.get("PEAKCUT_TEST_PORT"):
+        raise HTTPException(400, "AI Engine is not configured. Please add your API key in Settings -> AI Engine first.")
     url = str(body.get("url", "")).strip()[:500]
     if not media.site_allowed(url):
         raise HTTPException(400, "Paste a full link to a YouTube, Twitch or Kick video.")
@@ -835,6 +838,8 @@ def create_from_link(body: dict = Body(...)):
 def create_from_file(file: UploadFile = File(...), options: str = Form("{}"), creator: str = Form("")):
     _need_verified()
     _job_slots()
+    if not config.ai_ready() and not os.environ.get("PEAKCUT_TEST_PORT"):
+        raise HTTPException(400, "AI Engine is not configured. Please add your API key in Settings -> AI Engine first.")
     name = re.sub(r"[^\w.\- ]", "_", Path(file.filename or "video.mp4").name)[:120]
     ext = Path(name).suffix.lower()
     if ext not in VIDEO_TYPES:

@@ -679,7 +679,7 @@ def _run_job(job):
         s0 = int((a - lo) / 16000)
         found, ai = brain.find_clips(bw, db[s0: s0 + int((b - a) / 16000) + 1], (b - a) / 16000, job["title"],
                                      job["uploader"], quota, int(o["min_len"]), int(o["max_len"]), notes.append,
-                                     heatmap=job.get("heatmap"))
+                                     heatmap=job.get("heatmap"), user_prompt=o.get("prompt", ""))
         tokens += ai.get("tokens", 0)
         model = ai.get("model") or model
         if ai.get("note"):

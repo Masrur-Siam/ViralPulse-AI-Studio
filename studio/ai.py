@@ -130,6 +130,8 @@ def save(provider_id: str, model_ids, address: str = "", new_key=None) -> dict:
         raise ValueError("A custom service needs its address, for example http://127.0.0.1:1234/v1")
     old = current()
     k = old["key"] if new_key is None and old["provider"] == p else str(new_key or "").strip()[:400]
+    if p not in NO_KEY and not k:
+        raise ValueError("Paste the key for this service.")
     with _lock:
         f = _file()
         tmp = f.with_suffix(".tmp")

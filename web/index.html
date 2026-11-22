@@ -198,7 +198,7 @@ main{background:var(--bg);margin:8px 8px 8px 0;border-radius:var(--r-lg);height:
 .topbar h1{font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--brand-ink)}
 .topbar p{font-size:12px;color:var(--dim);margin-top:0;overflow-wrap:anywhere}
 .icon-btn.menu{display:none}
-.content{padding:28px 32px 72px;max-width:1280px;margin:0 auto}
+.content{padding:28px 36px 72px;max-width:1560px;margin:0 auto}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .grow{flex:1}
 
@@ -293,7 +293,7 @@ label.ck input{accent-color:var(--brand);margin:0}
 #view{position:relative;z-index:1}
 .hero h2{font-size:clamp(21px,5.2vw,28px);font-weight:700;letter-spacing:-.03em;color:var(--brand-ink);line-height:1.2;text-wrap:balance}
 .hero>p{color:var(--dim);margin:8px auto 22px;max-width:520px;font-size:15px}
-.composer{max-width:760px;margin:0 auto;background:var(--card-bg);border:1px solid var(--line-2);border-radius:var(--r-lg);text-align:left;transition:background-color .15s ease,border-color .15s ease}
+.composer{max-width:960px;margin:0 auto;background:var(--card-bg);border:1px solid var(--line-2);border-radius:var(--r-lg);text-align:left;transition:background-color .15s ease,border-color .15s ease}
 .composer:has(#url:focus){border-color:var(--brand)}
 .composer.compact{max-width:none;margin-bottom:28px;background:var(--muted)}
 .composer.over{background:var(--brand-soft);border-color:var(--brand)}
@@ -455,16 +455,16 @@ img.av{object-fit:cover}
 .steps{display:flex;flex-direction:column;gap:8px}
 .step{display:flex;gap:12px;align-items:center;width:100%;text-align:left;padding:12px;border-radius:var(--r);background:var(--muted);border:0;cursor:pointer}
 .step:active{background:var(--line)}
-.set-layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:32px;align-items:start}
-.set-nav{position:sticky;top:76px;display:flex;flex-direction:column;gap:2px}
-.set-link{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:10px;color:var(--dim);text-decoration:none;transition:background-color .15s ease,color .15s ease}
+.set-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:36px;align-items:start}
+.set-nav{position:sticky;top:76px;display:flex;flex-direction:column;gap:4px}
+.set-link{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;color:var(--dim);text-decoration:none;transition:background-color .15s ease,color .15s ease}
 .set-link svg{flex:none;width:18px;height:18px;margin-top:2px}
 .set-link b{display:block;font-size:14px;font-weight:600;color:var(--text)}
 .set-link small{display:block;font-size:12px;color:var(--faint);line-height:1.4}
 .set-link:hover{background:var(--muted)}
 .set-link.on{background:var(--brand-soft)}.set-link.on svg{color:var(--brand-deep)}.set-link.on b{color:var(--brand-ink)}
 .set-body{min-width:0;animation:rise .25s ease both}
-.ai-form{display:grid;gap:18px;max-width:560px}
+.ai-form{display:grid;gap:18px;max-width:840px;width:100%}
 .ai-form select{width:100%}
 .ai-form .with{display:flex;gap:8px}.ai-form .with input{flex:1;min-width:0}
 .ai-form .hint{font-size:12px;font-weight:400;color:var(--dim)}
@@ -1188,13 +1188,7 @@ async function markRead() { try { await send("/api/notifications/read"); S.statu
 function openAcct() {
   const p = $("#acctpop");
   if (!p.hidden) return closePops();
-  p.innerHTML = `<button data-act="go" data-v="settings" data-tab="ai">${ic("bolt")}AI Settings &amp; Key</button>
-    <button data-act="go" data-v="settings">${ic("cog")}Studio Settings</button>
-    <div style="height:1px;background:var(--line);margin:4px 0"></div>
-    <button data-act="factoryreset" style="color:#6EE7B7">${ic("trash")}Clean Videos &amp; Cache (Keep API Key)</button>
-    <button data-act="resettour" style="color:var(--brand-deep)">${ic("play")}Reset &amp; Tour (Fresh Install)</button>
-    <div style="height:1px;background:var(--line);margin:4px 0"></div>
-    <button data-act="shutdown" style="color:#F87171">${ic("signout")}Exit Studio (Turn off)</button>`;
+  p.innerHTML = `<button data-act="go" data-v="settings">${ic("cog")}Studio Settings</button>`;
   openPop(p, $("[data-act=acctmenu]"));
 }
 document.addEventListener("click", e => { if (!e.target.closest(".pop, [data-act=bell], [data-act=acctmenu]")) closePops(); });
@@ -1274,16 +1268,17 @@ function moveInd() {
   lastInd = {x, w};
 }
 function drawShell() {  const nav = (v, icon, label, extra = "") => `<button class="nav-item ${S.view === v ? "on" : ""}" data-act="go" data-v="${esc(v)}" title="${esc(label)}">${icon}<span class="label">${esc(label)}</span>${extra}</button>`;
+  const st = S.status;
+  const k = S.status.ai;
   put($("#nav"), nav("overview", navIc("home", "overview"), "Home") +
     nav("library", navIc("film", "library"), "All videos", (() => { const w = S.jobs.filter(j => ["queued", "running"].includes(j.status)).length;
       return w ? `<span class="working" title="${w} working now"><i></i>${w} working</span>` : S.jobs.length ? `<span class="count">${S.jobs.length}</span>` : ""; })()) +
+    nav("settings", ic("cog"), "Settings") +
     `<h4><span>Creators</span></h4>` +
     S.creators.map(c => nav("c:" + c.id, cav(c), c.name,
       c.live_job ? `<span class="sb-tag rec" title="Recording now"><i></i>Rec</span>`
         : liveOn(c).length ? `<span class="sb-tag" title="Live on ${esc(liveOn(c).map(([k]) => PLAT[k].name).join(" and "))}"><i></i>Live</span>` : "")).join("") +
     `<button class="nav-item" data-act="newcreator" title="New creator">${ic("plusc")}<span class="label">New creator</span></button>`);
-  const st = S.status;
-  const k = S.status.ai;
   const devFooter = `<div class="dev-badge" title="ViralPulse AI Studio - Created by Masrur Siam">
       <div class="dev-header"><span>Dev: Masrur Siam</span><span style="font-size:10px;color:#A78BFA;font-weight:700">v2.0 Pro</span></div>
       <div class="dev-icons">
@@ -1294,17 +1289,15 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
       </div>
       <div class="dev-copy">&copy; 2026 Masrur Siam. All Rights Reserved.</div>
     </div>`;
-  put($("#foot"), (k ? `<button class="ai-card" data-act="go" data-v="settings" data-tab="ai" title="${k.ready ? `AI: ${esc(k.provider || "Ready")} (${esc(k.model || "")})` : "Click to configure AI Key"}">
-      <span class="ai-ic">${ic("bolt")}</span><span class="ai-tx"><small>AI Engine</small><b>${k.ready ? esc(k.provider || "Ready") : "Offline (Loudness)"}</b></span>${k.ready ? `<span class="ai-n">${esc(k.model || "Active")}</span>` : ""}</button>` : "") +
-    (S.status.user ? `<div class="me"><button class="me-btn" data-act="acctmenu" aria-haspopup="menu" aria-expanded="false">${meAvatar(S.status.user)}
-      <span class="who"><b>Settings</b><span>AI Key, Bypass, Storage</span></span></button>
+  put($("#foot"), (S.status.user ? `<div class="me"><button class="me-btn" data-act="go" data-v="settings" title="Settings">${meAvatar(S.status.user)}
+      <span class="who"><b>Settings</b><span>AI, Storage, Apps</span></span></button>
       <button class="icon-btn bell" data-act="bell" title="Notifications" aria-label="Notifications${S.status.unread ? `, ${S.status.unread} new` : ""}" aria-haspopup="dialog">${ic("bell")}${S.status.unread ? `<span class="dotn">${S.status.unread > 9 ? "9+" : S.status.unread}</span>` : ""}</button></div>` : "") + devFooter);
   const c = creator();
   const recording = S.creators.filter(x => x.live_job).length;
   let title = {overview:"Home", library:"All videos", settings:"Settings"}[S.view] || "", sub = "", act = "";
   if (S.view === "overview") sub = `${greeting()}. ${S.creators.length} creator${S.creators.length === 1 ? "" : "s"}${recording ? `, ${recording} recording now` : ""}.`;
   if (S.view === "library") sub = "Every video and recording, across all creators.";
-  if (S.view === "settings") sub = "Your AI key, anti-copyright bypass, and connected apps.";
+  if (S.view === "settings") sub = "AI Engine, API key, storage maintenance and connected platforms.";
   let pic = "", subHtml = null, tabs = "";
   if (c) {
     title = c.name;
@@ -1315,9 +1308,7 @@ function drawShell() {  const nav = (v, icon, label, extra = "") => `<button cla
       `<button class="tabbtn ${S.ctab === k ? "on" : ""}" data-act="tab" data-t="${k}" role="tab" aria-selected="${S.ctab === k}">${ic(i)}${l}${n ? `<span class="n">${n > 99 ? "99+" : n}</span>` : ""}</button>`).join("");
     const liveBtn = c.live_job ? `<button class="btn danger" data-act="stoplive" data-j="${esc(c.live_job)}">${ic("stop")}Stop recording</button>`
                                : `<button class="btn primary" data-act="golive"><span class="rdot"></span>${liveOn(c).length ? "Record live stream" : "Start recording"}</button>`;
-    act = liveBtn + ` <button class="btn sm" data-act="resettour" title="Wipe all data and restart fresh tour (Like new install)">${ic("play")}<span>Reset &amp; Tour</span></button> <button class="btn sm danger-outline" data-act="factoryreset" title="Clean cached videos &amp; garbage (Keeps API key)">${ic("trash")}<span>Clean</span></button>`;
-  } else {
-    act = `<button class="btn sm" data-act="resettour" title="Wipe all data and restart fresh tour (Like new install)">${ic("play")}<span>Reset &amp; Tour</span></button> <button class="btn sm danger-outline" data-act="factoryreset" title="Clean cached videos &amp; garbage (Keeps API key)">${ic("trash")}<span>Clean</span></button>`;
+    act = liveBtn;
   }
   const devPill = `<div class="dev-pill" title="ViralPulse AI Studio by Masrur Siam">
     <span class="dev-tag">Developer</span>
@@ -1353,7 +1344,8 @@ function pathFor(v, tab) {
 function fromPath(path) {
   const m = path.match(/^\/app\/creators\/([^/]+)(?:\/(setup|activity|clips))?\/?$/);
   if (m) return ["c:" + decodeURIComponent(m[1]), m[2] || "clips"];
-  const st = path.match(/^\/app\/settings(?:\/(ai|profile|security|apps|storage))?\/?$/);
+  if (path.replace(/\/$/, "") === "/app/ai") return ["settings", "ai"];
+  const st = path.match(/^\/app\/settings(?:\/(ai|storage|apps|profile|security))?\/?$/);
   if (st) return ["settings", st[1] || null];
   const k = Object.keys(ROUTES).find(x => ROUTES[x] && path.replace(/\/$/, "") === "/app/" + ROUTES[x]);
   return [k || "overview", "clips"];
@@ -1365,6 +1357,7 @@ function remember(v, tab, how = "push") {
 addEventListener("popstate", () => { const [v, tab] = fromPath(location.pathname); go(v, tab, true); });
 function go(v, tab, fromHistory) {
   if (v.startsWith("c:") && !S.creators.some(c => "c:" + c.id === v)) v = "overview";
+  if (v === "ai" || v === "usage") return go("settings", "ai", fromHistory);
   S.view = v; if (tab) S.ctab = tab; else if (!v.startsWith("c:")) S.ctab = "clips";
   if (v === "settings") S.stab = setTabs().some(x => x[0] === tab) ? tab : setTabs()[0][0];
   if (!fromHistory) remember(v, v.startsWith("c:") ? S.ctab : v === "settings" ? S.stab : null);
@@ -1377,7 +1370,6 @@ function go(v, tab, fromHistory) {
   if (v === "overview") view.innerHTML = `<div id="ov"></div>`;
   else if (v === "library") view.innerHTML = `<div id="add"></div><div id="jobs"></div>`;
   else if (v === "settings") view.innerHTML = `<div id="sform"></div>`;
-  else if (v === "usage") { return go("settings", "ai"); }
   else view.innerHTML = `<div id="stream"></div><div id="cbody"></div>`;   // the live player stays put across tabs: no restart, no rebuffer
   if ($("#add")) drawAdd(v === "overview" ? "hero" : "compact");
   if (v === "overview" && window.GradientASCII) { try { window._gaStop = GradientASCII($("#appAscii"), {colors: ["#ffb27a", "#ffffff", "#ffd2ae", "#ffe0c2", "#fff1e6"], shape: "horizon", lightMode: true, cellSize: 16, density: 0.8, glyphOpacity: 0.26, gradientOpacity: 0.32, glow: 0.06, grain: 0.06, mouseInteraction: false, clickEffect: "none"}); } catch {} }
@@ -1424,6 +1416,10 @@ function drawAdd(variant) {
       <div class="ob"><div class="ot">Part of the video</div><div class="range">
         <label>From<input id="o_from" type="number" min="0" placeholder="start" aria-label="From minute">min</label>${ic("arrowr")}
         <label>To<input id="o_to" type="number" min="0" placeholder="end" aria-label="Up to minute">min</label></div></div>
+      <div class="ob wide"><div class="ot">AI Clipping Instruction (Custom Prompt)</div>
+        <input id="o_prompt" placeholder="e.g. Focus on funniest jokes, clutch gaming moments, business advice, debate highlights..." style="width:100%;box-sizing:border-box;padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid var(--line);border-radius:8px;color:#fff;font-size:13px" value="${esc(c?.prompt || "")}">
+        <span class="hint" style="font-size:11px;color:var(--faint);margin-top:4px;display:block">Tell the AI exactly what style, topic, or moments to find.</span>
+      </div>
       <div class="ob"><div class="ot">Protection</div>
         <label class="ck" style="font-size:12px;margin-top:4px;cursor:pointer;display:flex;align-items:flex-start;gap:6px;">
           <input type="checkbox" id="o_anticopyright" ${c?.anti_copyright ? "checked" : ""}>
@@ -1489,7 +1485,7 @@ document.addEventListener("keydown", e => {
 const targetCreator = () => creatorId() || $("#o_creator")?.value || "";
 function jobOptions() {
   const n = id => { const v = $(id).value; return v === "" ? null : Number(v); };
-  const o = {max_clips:n("#o_max"), min_len:n("#o_min"), max_len:n("#o_maxlen"), style:$("#o_style").value, layout:$("#o_layout").value, quality:n("#o_quality"), anti_copyright:!!$("#o_anticopyright")?.checked};
+  const o = {max_clips:n("#o_max"), min_len:n("#o_min"), max_len:n("#o_maxlen"), style:$("#o_style").value, layout:$("#o_layout").value, quality:n("#o_quality"), anti_copyright:!!$("#o_anticopyright")?.checked, prompt:$("#o_prompt")?.value.trim() || ""};
   if (n("#o_from") !== null) o.range_start = n("#o_from") * 60;
   if (n("#o_to") !== null) o.range_end = n("#o_to") * 60;
   return o;
@@ -1676,6 +1672,11 @@ function sendFile(f, who) {
 async function makeClips() {
   const A = att();
   if (A.busy) return;
+  if (!S.status.ai?.ready && !S.status.ai?.has_key) {
+    toast("⚠️ AI API Key is required! Please add your Gemini or OpenAI API key in AI Engine first.", "bad");
+    go("ai");
+    return;
+  }
   const typed = $("#url")?.value.trim();
   if (typed && looksLink(typed) && !isChannel(typed)) { clearTimeout(linkTimer); takeLink(A, typed, $("#url")); }
   if (A.links.some(l => l.state === "wait")) {   // still looking a link up: start as soon as it is found
@@ -1917,7 +1918,6 @@ function drawCreatorForm() {
         <label class="f">Minutes between posts on one account<input data-k="post_gap_min" type="number" value="${c.post_gap_min}"></label>
         <label class="f">Most posts per account per day<input data-k="daily_cap" type="number" value="${c.daily_cap}"></label>
         <label class="f">Who can see posts (YouTube, TikTok)<select data-k="privacy">${opts({public:"Public", unlisted:"Unlisted", private:"Private"}, c.privacy)}</select></label>
-        <label class="f">Campaign pay per 1,000 views ($)<input data-k="rate_per_1k" type="number" step="0.1" min="0" value="${c.rate_per_1k}"></label>
         <label class="f span">Line added to every post (credit, campaign tag)<input data-k="post_footer" value="${esc(c.post_footer)}" placeholder="Clipped from @streamer"></label></div></div>
     <div class="card danger-card"><h2>Delete this creator</h2><p class="help">Removes ${esc(c.name)}, their settings and every video and clip filed under them. This cannot be undone.</p>
       <button class="btn danger" data-act="delcreator">${ic("trash")}Delete creator</button></div>
@@ -1978,16 +1978,15 @@ function drawOverview() {
     <div class="home-grid">
       <div class="card"><div class="card-head"><div><h2>Activity</h2><p class="sub">Last 14 days</p></div>
           <div class="kpis"><div class="kpi"><b>${d14("clips")}</b><span>Clips made</span></div><div class="kpi"><b>${d14("posted")}</b><span>Posted</span></div>
-            <div class="kpi"><b>${sum("views").toLocaleString()}</b><span>Views</span></div><div class="kpi"><b>$${sum("earnings").toFixed(2)}</b><span>Est. earnings</span></div></div></div>
+            <div class="kpi"><b>${sum("views").toLocaleString()}</b><span>Total views</span></div></div></div>
         <div class="legend"><span><i style="background:var(--brand)"></i>Clips made</span><span><i style="background:var(--brand-ink)"></i>Posted</span></div>
         ${barChart(o.daily || [])}</div>
-      ${aiCard()}
     </div>
     ${steps.length ? `<div class="card"><div class="card-head"><div><h2>Next steps</h2><p class="sub">Finish setting up ViralPulse AI</p></div></div>
       <div class="steps across">${steps.map((x, i) => `<button class="step" data-act="step" data-to="${esc(x[2])}"><span class="n">${i + 1}</span><span><b>${esc(x[0])}</b><span class="d">${esc(x[1])}</span></span>${ic("arrowr")}</button>`).join("")}</div></div>` : ""}
     <div class="card"><div class="card-head"><div><h2>Creators</h2><p class="sub">Each creator's status and results</p></div></div>
-      ${o.creators.length ? `<div class="scroll"><table><tr><th>Creator</th><th>Status</th><th>Auto-post</th><th class="num">Clips today</th><th class="num">Posted today</th><th class="num">Waiting</th><th class="num">Failed</th><th class="num">Views</th><th class="num">Est. $</th></tr>
-      ${o.creators.map(r => `<tr><td><a class="lnk" href="#" data-act="go" data-v="c:${esc(r.id)}">${esc(r.name)}</a></td><td>${state(r)}</td><td>${r.autopost ? `<span class="pill ok">On</span>` : `<span class="pill">Off</span>`}</td><td class="num">${r.clips_today} <span class="sub">/ ${r.clips_total}</span></td><td class="num">${r.posted_today} <span class="sub">/ ${r.posted_total}</span></td><td class="num">${r.queued}</td><td class="num">${r.failed}</td><td class="num">${r.views.toLocaleString()}</td><td class="num">${r.earnings.toFixed(2)}</td></tr>`).join("")}</table></div>`
+      ${o.creators.length ? `<div class="scroll"><table><tr><th>Creator</th><th>Status</th><th>Auto-post</th><th class="num">Clips today</th><th class="num">Posted today</th><th class="num">Waiting</th><th class="num">Failed</th><th class="num">Total Views</th></tr>
+      ${o.creators.map(r => `<tr><td><a class="lnk" href="#" data-act="go" data-v="c:${esc(r.id)}">${esc(r.name)}</a></td><td>${state(r)}</td><td>${r.autopost ? `<span class="pill ok">On</span>` : `<span class="pill">Off</span>`}</td><td class="num">${r.clips_today} <span class="sub">/ ${r.clips_total}</span></td><td class="num">${r.posted_today} <span class="sub">/ ${r.posted_total}</span></td><td class="num">${r.queued}</td><td class="num">${r.failed}</td><td class="num">${r.views.toLocaleString()}</td></tr>`).join("")}</table></div>`
       : `<div class="empty"><img src="/brand/viralpulse-favicon.svg?v=2026" alt=""><b>No creators yet</b>Add one to give each streamer their own workspace.</div>`}</div>
     <div class="card"><div class="card-head"><div><h2>Post queue</h2><p class="sub">${o.paused ? "Paused. Recording and clipping carry on; nothing is posted." : "Queued clips go out at their scheduled time."}</p></div>
         <button class="btn ${o.paused ? "primary" : ""}" data-act="pause">${ic(o.paused ? "play" : "pause")}${o.paused ? "Resume posting" : "Pause all posting"}</button></div>
@@ -1997,14 +1996,7 @@ function drawOverview() {
       : `<p class="help">Nothing queued or posted yet.</p>`}</div>`);
 }
 
-/* ============================================================ settings */
-// With sign-in off there is no profile or password to manage. The AI section is for whoever runs the server.
-const setTabs = () => [
-  ...(S.status.user?.is_admin ? [["ai", "AI", "bolt", "Your AI service, model and key"]] : []),
-  ...(S.status.accounts === false ? [] : [["profile", "Profile", "user", "Your name, email and how you sign in"],
-                                          ["security", "Security", "lock", "Password and signing out"]]),
-  ["apps", "Connected apps", "plug", "Where your clips get posted"],
-  ...(S.status.user?.is_admin ? [["storage", "Storage", "folder", "Where videos and clips are kept"]] : [])];
+/* ============================================================ AI Engine & Settings */
 function aiHints() {
   const k = S.ai, sel = $("#ai_provider"); if (!k || !sel) return;
   const pv = k.providers.find(x => x.id === sel.value) || k.providers[0], same = pv.id === k.provider;
@@ -2014,6 +2006,15 @@ function aiHints() {
   $("#ai_base").placeholder = pv.address || "http://127.0.0.1:1234/v1";
   $("#ai_basewrap").hidden = pv.id !== "custom" && !(same && k.base_url);
 }
+
+const setTabs = () => [
+  ["ai", "AI Engine & Key", "bolt", "API key, models & intelligence settings"],
+  ["storage", "Storage & Clean", "folder", "Disk storage, purge cache & fresh reset"],
+  ["apps", "Connected apps", "plug", "Where your clips get posted"],
+  ...(S.status.accounts === false ? [] : [["profile", "Profile", "user", "Your name, email and how you sign in"],
+                                          ["security", "Security", "lock", "Password and signing out"]]),
+];
+
 async function drawSettings() {
   const box = $("#sform"); if (!box) return;
   const tab = S.stab || setTabs()[0][0], me = S.status.user;
@@ -2024,29 +2025,58 @@ async function drawSettings() {
   try {
     if (tab === "ai") {
       const k = S.ai = await api("/api/ai");
-      body.innerHTML = `<section class="set-sec"><h2>AI Engine &amp; API Key</h2><p class="help">ViralPulse AI uses an AI model to detect high-engagement hooks, audience heatmaps, and generate viral YouTube SEO titles, hashtags, and subtitles. Your API key is kept 100% locally on your computer.</p>
-          <div class="ai-state" style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,255,255,0.03);border:1px solid var(--line-2);border-radius:10px;margin-bottom:16px">
-            ${k.has_key ? `<span class="pill ok">${ic("check")}Key Saved &amp; Ready</span>` : `<span class="pill warn">No Key (Offline Loudness)</span>`}
-            <span class="sub" style="font-size:13px">
+      body.innerHTML = `<section class="set-sec">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:12px">
+          <h2 style="margin:0;font-size:22px;display:flex;align-items:center;gap:10px">${ic("bolt")}<span style="background:linear-gradient(135deg,#fff,#FF8B33);-webkit-background-clip:text;-webkit-text-fill-color:transparent">AI Engine &amp; API Configuration</span></h2>
+          ${k.has_key ? `<span class="pill ok" style="font-size:13px;padding:4px 10px">${ic("check")}Key Saved &amp; Ready</span>` : `<span class="pill warn" style="font-size:13px;padding:4px 10px">API Key Required</span>`}
+        </div>
+        <p class="help">ViralPulse AI uses intelligent LLM models (Gemini, OpenAI, Claude, DeepSeek, Groq) to find peak audience retention moments, YouTube heatmap spikes, and auto-generate SEO-optimized titles, hashtags, and dynamic subtitles.</p>
+
+        <div class="ai-state" style="display:flex;align-items:center;gap:14px;padding:16px 20px;background:rgba(255,255,255,0.03);border:1px solid ${k.has_key ? "rgba(110,231,183,0.3)" : "rgba(248,113,113,0.3)"};border-radius:12px;margin:18px 0 24px">
+          <div style="font-size:28px">${k.has_key ? "⚡" : "⚠️"}</div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:15px;color:${k.has_key ? "#6EE7B7" : "#F87171"}">
+              ${k.has_key ? "AI Engine Active &amp; Ready" : "API Key Required to Generate Shorts"}
+            </div>
+            <div class="sub" style="font-size:13px;margin-top:2px">
               ${k.has_key ? `Active Provider: <b>${esc(k.label)}</b> · Key in use: <code>${esc(k.key_masked || "••••••••" + k.key_hint)}</code> · Model: <code>${esc(k.models[0] || "")}</code>`
-                          : "No API key is configured. Clips are generated using local loudness & speech detection."}
+                          : "No API key is configured. Please enter your API key below and click 'Save and test' to enable video generation."}
+            </div>
+          </div>
+        </div>
+
+        <div class="ai-form">
+          <label class="f">AI Provider / Service
+            <select id="ai_provider">${k.providers.map(x => `<option value="${esc(x.id)}" ${x.id === k.provider ? "selected" : ""}>${esc(x.label)}</option>`).join("")}</select>
+          </label>
+          <label class="f">API Key
+            <input id="ai_key" type="password" autocomplete="off" spellcheck="false" placeholder="${k.has_key ? `Saved: ${k.key_masked || "••••••••"}` : "Paste your API key"}">
+            <span class="hint" id="ai_keyhint"></span>
+          </label>
+          <label class="f" id="ai_basewrap">Address
+            <input id="ai_base" value="${esc(k.base_url || "")}" spellcheck="false">
+            <span class="hint">Where the service answers. Only needed for a custom service.</span>
+          </label>
+          <label class="f">Model
+            <span class="with">
+              <input id="ai_model" list="ai_models" value="${esc(k.models.join(", "))}" spellcheck="false">
+              <button class="btn" type="button" data-act="aimodels">Find models</button>
             </span>
-          </div>
-          <div class="ai-form">
-            <label class="f">AI service<select id="ai_provider">${k.providers.map(x => `<option value="${esc(x.id)}" ${x.id === k.provider ? "selected" : ""}>${esc(x.label)}</option>`).join("")}</select></label>
-            <label class="f">Key<input id="ai_key" type="password" autocomplete="off" spellcheck="false" placeholder="${k.has_key ? `Saved: ${k.key_masked || "••••••••"}` : "Paste your API key"}"><span class="hint" id="ai_keyhint"></span></label>
-            <label class="f" id="ai_basewrap">Address<input id="ai_base" value="${esc(k.base_url || "")}" spellcheck="false"><span class="hint">Where the service answers. Only needed for a custom service.</span></label>
-            <label class="f">Model<span class="with"><input id="ai_model" list="ai_models" value="${esc(k.models.join(", "))}" spellcheck="false"><button class="btn" type="button" data-act="aimodels">Find models</button></span>
-              <datalist id="ai_models"></datalist><span class="hint">A fast, inexpensive model is the right choice. Add a second one after a comma to fall back on.</span></label>
-          </div>
-          <div class="ai-security-banner">
-            <div class="shield-badge">🔒 <b>100% Safe Local Storage:</b> Your API key is stored strictly on your PC and excluded by <code>.gitignore</code>. It is NEVER uploaded to GitHub.</div>
-          </div>
-          <div class="row" style="margin-top:20px;gap:10px">
-            <button class="btn primary" data-act="aisave">${ic("check")}Save and test</button>
-            ${k.has_key ? `<button class="btn danger-outline" data-act="wipeaikey">${ic("trash")}Permanently Remove Key</button>` : ""}
-            ${k.ready ? `<button class="btn" data-act="aitest">${ic("bolt")}Test again</button>` : ""}
-          </div></section>`;
+            <datalist id="ai_models"></datalist>
+            <span class="hint">A fast, inexpensive model is recommended (e.g. <code>gemini-2.5-flash</code>). Add a second one after a comma for fallback.</span>
+          </label>
+        </div>
+
+        <div class="ai-security-banner" style="margin-top:18px">
+          <div class="shield-badge">🔒 <b>100% Safe Local Storage:</b> Your API key is stored strictly on your PC and excluded by <code>.gitignore</code>. It is NEVER uploaded to GitHub.</div>
+        </div>
+
+        <div class="row" style="margin-top:22px;gap:10px">
+          <button class="btn primary" data-act="aisave">${ic("check")}Save and test</button>
+          ${k.has_key ? `<button class="btn danger-outline" data-act="wipeaikey">${ic("trash")}Permanently Remove Key</button>` : ""}
+          ${k.ready ? `<button class="btn" data-act="aitest">${ic("bolt")}Test again</button>` : ""}
+        </div>
+      </section>`;
       aiHints();
     }
     if (tab === "profile") {
@@ -2085,7 +2115,18 @@ async function drawSettings() {
                 <label class="ck"><input type="checkbox" id="stor_move" checked>Move everything that is in the current folder there too</label>
                 <p class="sub">The change happens the next time ViralPulse AI starts, so nothing is moved while a video is being made.</p>
                 <div class="row"><button class="btn primary" data-act="storsave">Use this folder</button><button class="btn ghost" data-act="storchange">Cancel</button></div></div>`
-            : `<div class="row" style="margin-top:16px"><button class="btn" data-act="storchange">Change folder</button></div>`}</section>`;
+            : `<div class="row" style="margin-top:16px"><button class="btn" data-act="storchange">Change folder</button></div>`}
+        </section>
+        <section class="set-sec" style="margin-top:24px">
+          <h2>Maintenance &amp; Deep Clean</h2>
+          <p class="help">Clean up temporary video downloads, processing cache, and garbage files while safely keeping your AI API key, or do a full fresh reset of the entire studio.</p>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin:18px 0">
+            <button class="btn" data-act="factoryreset" style="display:flex;align-items:center;gap:8px">${ic("trash")}Clean Videos &amp; Cache (Keep API Key)</button>
+            <button class="btn danger" data-act="resettour" style="display:flex;align-items:center;gap:8px">${ic("trash")}Reset All &amp; Fresh Tour</button>
+          </div>
+          <p class="sub" style="margin-top:10px;line-height:1.6"><b>Clean Videos &amp; Cache:</b> Deletes all clips, video files, transcripts, temp directories, notices and usage logs. Your AI API key remains untouched.<br>
+          <b>Reset All &amp; Fresh Tour:</b> Fully restores the studio to pristine first-time install state, wiping all data, settings, and API keys.</p>
+        </section>`;
     }
     if (tab === "apps") {
       const conn = S.accounts || [];
@@ -2285,7 +2326,8 @@ document.addEventListener("click", async e => {
         if (a === "aisave") await send("/api/ai", {provider: $("#ai_provider").value, models: $("#ai_model").value, base_url: $("#ai_base").value, key: $("#ai_key").value}, "PUT");
         let ok = null, why = "";
         try { ok = await send("/api/ai/test"); } catch (err) { why = err.message; }
-        S.status = await api("/api/status"); drawShell(); await drawSettings();
+        S.status = await api("/api/status"); drawShell();
+        if (S.view === "ai") await drawAI(); else await drawSettings();
         if (ok) toast(`Saved. ${ok.model} answered, so the AI is ready.`, "ok");
         else toast(`Saved, but the test failed. ${why}`, "bad");
       } finally { b.disabled = false; }
@@ -2381,7 +2423,7 @@ document.addEventListener("click", async e => {
         await api("/api/ai/key", {method:"DELETE"});
         S.status = await api("/api/status");
         drawShell();
-        await drawSettings();
+        if (S.view === "ai") await drawAI(); else await drawSettings();
         toast("API Key permanently removed. Tool is in offline loudness mode.", "ok");
       } catch (err) {
         toast("Error removing key: " + err.message, "bad");
