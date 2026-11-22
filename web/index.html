@@ -2391,7 +2391,7 @@ document.addEventListener("click", async e => {
       if (!await ask("Reset & Tour (Full Fresh Install)?", "⚠️ This will delete ALL data, downloaded videos, cache, and saved API keys. The studio will be completely reset to a pristine first-time installation state and launch the onboarding tour.", "Reset Everything", true)) return;
       toast("Resetting studio & wiping all data…", "info");
       try {
-        await api("/api/tour/reset", {method:"POST"});
+        await send("/api/tour/reset");
         try { localStorage.removeItem("viralpulse_tour_seen"); } catch {}
         toast("Studio reset to fresh install state! Starting tour…", "ok");
         setTimeout(() => location.reload(), 1000);
@@ -2405,10 +2405,10 @@ document.addEventListener("click", async e => {
       if (!await ask("Clean Videos & Cache?", "This will delete all processed videos, cuts, temporary files, and garbage cache. Your AI API Key will be safely PRESERVED.", "Clean Now", true)) return;
       toast("Cleaning up video cache and garbage files…", "info");
       try {
-        const res = await api("/api/factory-reset", {method:"POST"});
+        const res = await send("/api/factory-reset");
         S.jobs = [];
         render();
-        toast(`🧹 Clean Complete! Freed ${res.freed_mb} MB. API Key was preserved safely.`, "ok");
+        toast(`🧹 Clean Complete! Freed ${res.freed_mb ?? 0} MB. API Key was preserved safely.`, "ok");
         await tick();
       } catch (err) {
         toast("Clean failed: " + err.message, "bad");

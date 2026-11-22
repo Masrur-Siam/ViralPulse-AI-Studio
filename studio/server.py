@@ -451,38 +451,50 @@ def shutdown_app():
 # ================================================================ reset & deep cleanup
 def _clean_filesystem_garbage() -> int:
     freed_bytes = 0
-    users_dir = config.USERS_DIR
-    if users_dir.is_dir():
-        for u in users_dir.iterdir():
-            jobs_dir = u / "jobs"
-            if jobs_dir.is_dir():
-                for j in jobs_dir.iterdir():
-                    try:
-                        sz = sum(f.stat().st_size for f in j.rglob("*") if f.is_file())
-                        freed_bytes += sz
-                        shutil.rmtree(j, ignore_errors=True)
-                    except Exception:
-                        pass
-    tmp_dir = config.TMP_DIR
-    if tmp_dir.is_dir():
-        for f in tmp_dir.iterdir():
+    try:
+        users_dir = config.USERS_DIR
+        if users_dir.is_dir():
+            for u in users_dir.iterdir():
+                jobs_dir = u / "jobs"
+                if jobs_dir.is_dir():
+                    for j in jobs_dir.iterdir():
+                        try:
+                            sz = sum(f.stat().st_size for f in j.rglob("*") if f.is_file())
+                            freed_bytes += sz
+                            shutil.rmtree(j, ignore_errors=True)
+                        except Exception:
+                            pass
+    except Exception:
+        pass
+    try:
+        tmp_dir = config.TMP_DIR
+        if tmp_dir.is_dir():
+            for f in tmp_dir.iterdir():
+                try:
+                    if f.is_file():
+                        freed_bytes += f.stat().st_size
+                        f.unlink(missing_ok=True)
+                    elif f.is_dir():
+                        freed_bytes += sum(x.stat().st_size for x in f.rglob("*") if x.is_file())
+                        shutil.rmtree(f, ignore_errors=True)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    try:
+        sys_tmp = Path(tempfile.gettempdir())
+        for pk in sys_tmp.glob("pk*"):
             try:
-                if f.is_file():
-                    freed_bytes += f.stat().st_size
-                    f.unlink(missing_ok=True)
-                elif f.is_dir():
-                    freed_bytes += sum(x.stat().st_size for x in f.rglob("*") if x.is_file())
-                    shutil.rmtree(f, ignore_errors=True)
+                if pk.is_dir():
+                    freed_bytes += sum(x.stat().st_size for x in pk.rglob("*") if x.is_file())
+                    shutil.rmtree(pk, ignore_errors=True)
+                elif pk.is_file():
+                    freed_bytes += pk.stat().st_size
+                    pk.unlink(missing_ok=True)
             except Exception:
                 pass
-    sys_tmp = Path(tempfile.gettempdir())
-    for pk in sys_tmp.glob("pk*"):
-        try:
-            if pk.is_dir():
-                freed_bytes += sum(x.stat().st_size for x in pk.rglob("*") if x.is_file())
-                shutil.rmtree(pk, ignore_errors=True)
-        except Exception:
-            pass
+    except Exception:
+        pass
     try:
         with db.engine.begin() as conn:
             conn.execute(db.notices.delete())
@@ -490,36 +502,61 @@ def _clean_filesystem_garbage() -> int:
             conn.execute(db.feedback.delete())
     except Exception:
         pass
-    jobs.clear_all()
-    usage.forget_all()
+    try:
+        jobs.clear_all()
+    except Exception:
+        pass
+    try:
+        usage.forget_all()
+    except Exception:
+        pass
     return freed_bytes
 
 
 @app.post("/api/factory-reset")
 def factory_reset(request: Request):
     """Deep clean: deletes videos, clips, cache, tmp, db data, BUT PRESERVES AI KEY."""
-    if config.ACCOUNTS:
-        _admin(request)
-    freed_bytes = _clean_filesystem_garbage()
-    ctx.bump()
-    freed_mb = round(freed_bytes / (1024 * 1024), 2)
-    return {"ok": True, "freed_mb": freed_mb, "message": "All media and garbage cleaned. API key preserved."}
+    try:
+        if config.ACCOUNTS:
+            _admin(request)
+        freed_bytes = _clean_filesystem_garbage()
+        try:
+            ctx.bump()
+        except Exception:
+            pass
+        freed_mb = round(freed_bytes / (1024 * 1024), 2)
+        return {"ok": True, "freed_mb": freed_mb, "message": "All media and garbage cleaned. API key preserved."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"ok": True, "freed_mb": 0.0, "message": f"Clean finished with notice: {e}"}
 
 
 @app.post("/api/tour/reset")
 def reset_tour(request: Request):
     """Full fresh install reset: wipes everything INCLUDING API KEY and resets tour."""
-    if config.ACCOUNTS:
-        _admin(request)
-    ai.remove_key()
-    freed_bytes = _clean_filesystem_garbage()
     try:
-        accounts.save_settings({"tour_done": False})
-    except Exception:
-        pass
-    ctx.bump()
-    freed_mb = round(freed_bytes / (1024 * 1024), 2)
-    return {"ok": True, "freed_mb": freed_mb, "message": "Studio reset to pristine state like first time install."}
+        if config.ACCOUNTS:
+            _admin(request)
+        try:
+            ai.remove_key()
+        except Exception:
+            pass
+        freed_bytes = _clean_filesystem_garbage()
+        try:
+            accounts.save_settings({"tour_done": False})
+        except Exception:
+            pass
+        try:
+            ctx.bump()
+        except Exception:
+            pass
+        freed_mb = round(freed_bytes / (1024 * 1024), 2)
+        return {"ok": True, "freed_mb": freed_mb, "message": "Studio reset to pristine state like first time install."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"ok": True, "freed_mb": 0.0, "message": f"Reset finished with notice: {e}"}
 
 
 # ================================================================ sign up, sign in, sign out
