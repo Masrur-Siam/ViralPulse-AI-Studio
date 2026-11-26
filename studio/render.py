@@ -231,8 +231,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 def _filter(layout, fg_h):
     if layout == "crop":
-        return f"[0:v]fps={config.OUT_FPS},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[v0];"
-    return (f"[0:v]fps={config.OUT_FPS},split=2[a][b];"
+        return f"[0:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[v0];"
+    return (f"[0:v]setpts=PTS-STARTPTS,fps={config.OUT_FPS},split=2[a][b];"
             f"[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=6:2,"
             f"scale={W}:{H},eq=brightness=-0.14:saturation=1.15[bg];"
             f"[b]scale={W}:{fg_h}:force_original_aspect_ratio=increase,crop={W}:{fg_h}[fg];"
@@ -292,11 +292,11 @@ def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, la
     if anti_copyright:
         fc += f";[v]scale=iw*1.02:ih*1.02,crop={W}:{H},eq=contrast=1.03:brightness=0.01:saturation=1.05[v_safe]"
         out_v = "[v_safe]"
-        audio_af = "volume=1.01,equalizer=f=950:t=q:w=1.2:g=0.6,aresample=async=1:first_pts=0,aformat=channel_layouts=stereo:sample_rates=48000,apad"
+        audio_af = "volume=1.01,equalizer=f=950:t=q:w=1.2:g=0.6,asetpts=PTS-STARTPTS,aresample=async=1000:min_hard_comp=0.100000:first_pts=0,aformat=channel_layouts=stereo:sample_rates=48000,apad"
         meta_args = ["-map_metadata", "-1"]
     else:
         out_v = "[v]"
-        audio_af = "aresample=async=1:first_pts=0,aformat=channel_layouts=stereo:sample_rates=48000,apad"
+        audio_af = "asetpts=PTS-STARTPTS,aresample=async=1000:min_hard_comp=0.100000:first_pts=0,aformat=channel_layouts=stereo:sample_rates=48000,apad"
         meta_args = []
     dur = max(0.1, e - s)
     inputs = ["-ss", f"{s:.2f}", "-avoid_negative_ts", "make_zero", "-i", str(src_path)]
@@ -353,7 +353,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             join_fc = (
                 "[0:v][1:v]xfade=transition=fadewhite:duration=0.35:offset=2.65[v];"
                 "[0:a][1:a]acrossfade=d=0.35:curve1=tri:curve2=tri[a0];"
-                "[a0]aresample=async=1:first_pts=0,aformat=channel_layouts=stereo:sample_rates=48000,apad[a]"
+                "[a0]asetpts=PTS-STARTPTS,aresample=async=1000:min_hard_comp=0.100000:first_pts=0,aformat=channel_layouts=stereo:sample_rates=48000,apad[a]"
             )
             join_cmd = ["ffmpeg", "-y", "-v", "error", "-i", "teaser.mp4", "-i", "main.mp4",
                         "-filter_complex", join_fc, "-map", "[v]", "-map", "[a]",

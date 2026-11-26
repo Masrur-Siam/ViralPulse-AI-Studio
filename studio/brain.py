@@ -261,7 +261,15 @@ def _snap(clip, lines, words, min_len, max_len, duration):
         ends = [w["e"] for w in words if lo <= w["e"] <= hi and abs(w["e"] - e) <= 4]
         if ends:
             e = min(ends, key=lambda x: abs(x - e))
-    e = max(e, s + min_len)
+
+    # Guarantee zero dead air at the clip end: snap e to the last spoken word's end (+ breath)
+    clip_words = [w for w in words if s <= w["s"] <= e]
+    if clip_words:
+        last_we = clip_words[-1]["e"]
+        if e > last_we + 0.6 and last_we >= s + min(min_len, 8.0):
+            e = last_we
+
+    e = max(e, s + min(min_len, 5.0))
     e = min(e, s + max_len, duration)
     # a short breath after the last word, but never into the next sentence
     nxt = next((w["s"] for w in words if w["s"] > e - 0.01), None)
@@ -335,6 +343,10 @@ def fallback_by_loudness(db, words, n, max_len, duration, heatmap=None):
             slice_words = [w for w in words if s <= w["s"] <= e]
             if not slice_words:
                 continue
+            # Snap e to the last spoken word so the clip never trails into dead silence
+            last_w = slice_words[-1]["e"]
+            if e > last_w + 0.6:
+                e = min(duration, last_w + 0.35)
             hk, ttl, top, r_lay, r_sty = _smart_fallback_title_hook(len(picks), slice_words, is_heatmap=True)
             picks.append({"start": s, "end": e, "score": min(95, max(50, int(val * 100))), "category": "other",
                           "topic": top, "recommended_layout": r_lay, "recommended_style": r_sty,
@@ -354,6 +366,10 @@ def fallback_by_loudness(db, words, n, max_len, duration, heatmap=None):
         slice_words = [w for w in words if s <= w["s"] <= e]
         if not slice_words:
             continue
+        # Snap e to the last spoken word so the clip never trails into dead silence
+        last_w = slice_words[-1]["e"]
+        if e > last_w + 0.6:
+            e = min(duration, last_w + 0.35)
         hk, ttl, top, r_lay, r_sty = _smart_fallback_title_hook(len(picks), slice_words, is_heatmap=False)
         picks.append({"start": s, "end": e, "score": 55, "category": "other",
                       "topic": top, "recommended_layout": r_lay, "recommended_style": r_sty,
