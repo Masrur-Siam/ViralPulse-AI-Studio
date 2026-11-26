@@ -2407,6 +2407,7 @@ function setupTimelineEvents(c) {
     if (dragging) {
       dragging = false;
       try { bar.releasePointerCapture(e.pointerId); } catch (_) {}
+      toast(`Hook positioned at ${inp.value}s - click ⚡ Live Play to preview`, "ok");
     }
   };
   bar.addEventListener("pointerup", endDrag);
@@ -2495,6 +2496,18 @@ function setupTimelineEvents(c) {
 
   v?.addEventListener("pause", stopLiveNLE);
   v?.addEventListener("ended", stopLiveNLE);
+
+  let inAutoNle = false;
+  v?.addEventListener("play", () => {
+    if (inAutoNle || nleTimer) return;
+    const t = Number(inp.value);
+    const origT = c.teaser_start != null ? Number(c.teaser_start) : Number(c.start);
+    if (Math.abs(t - origT) > 0.25 && v.currentTime < 0.35 && $("#c_teaser_hook")?.checked) {
+      inAutoNle = true;
+      $("#btn_live_nle")?.click();
+      setTimeout(() => { inAutoNle = false; }, 500);
+    }
+  });
 
   let previewTimer = null;
   $("#btn_preview_hook")?.addEventListener("click", () => {

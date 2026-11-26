@@ -286,19 +286,20 @@ def _has_audio(path: Path) -> bool:
 def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, layout: str, fg_h: int,
                     ass_str: str, anti_copyright: bool, has_audio: bool):
     global _qsv_ok
+    src_path = Path(src).resolve()
     (work / f"{seg_name}.ass").write_text(ass_str, encoding="utf-8")
     fc = _filter(layout, fg_h) + f"[v0]ass={seg_name}.ass:fontsdir=f[v]"
     if anti_copyright:
         fc += f";[v]scale=iw*1.02:ih*1.02,crop={W}:{H},eq=contrast=1.03:brightness=0.01:saturation=1.05[v_safe]"
         out_v = "[v_safe]"
-        audio_af = "volume=1.01,equalizer=f=950:t=q:w=1.2:g=0.6,aresample=async=1:first_pts=0"
+        audio_af = "volume=1.01,equalizer=f=950:t=q:w=1.2:g=0.6,aresample=async=1:first_pts=0,apad"
         meta_args = ["-map_metadata", "-1"]
     else:
         out_v = "[v]"
-        audio_af = "aresample=async=1:first_pts=0"
+        audio_af = "aresample=async=1:first_pts=0,apad"
         meta_args = []
     dur = max(0.1, e - s)
-    inputs = ["-ss", f"{s:.2f}", "-avoid_negative_ts", "make_zero", "-i", str(src)]
+    inputs = ["-ss", f"{s:.2f}", "-avoid_negative_ts", "make_zero", "-i", str(src_path)]
     if not has_audio:
         inputs += ["-f", "lavfi", "-t", f"{dur:.2f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
         audio_map = ["-map", "1:a"]
@@ -309,7 +310,7 @@ def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, la
             "-t", f"{dur:.2f}",
             "-filter_complex", fc, "-map", out_v] + audio_map + [
             "-af", audio_af, "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
-            "-avoid_negative_ts", "make_zero",
+            "-avoid_negative_ts", "make_zero", "-shortest",
             "-movflags", "+faststart", *meta_args, "-threads", "0", "-pix_fmt"]
     encoders = []
     encoders.append(("nvenc", ["yuv420p", "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "22"]))
@@ -349,13 +350,13 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             join_fc = (
                 "[0:v][1:v]xfade=transition=fadewhite:duration=0.35:offset=2.65[v];"
                 "[0:a][1:a]acrossfade=d=0.35:curve1=tri:curve2=tri[a0];"
-                "[a0]aresample=async=1:first_pts=0[a]"
+                "[a0]aresample=async=1:first_pts=0,apad[a]"
             )
             join_cmd = ["ffmpeg", "-y", "-v", "error", "-i", "teaser.mp4", "-i", "main.mp4",
                         "-filter_complex", join_fc, "-map", "[v]", "-map", "[a]",
                         "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
                         "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
-                        "-avoid_negative_ts", "make_zero", "-movflags", "+faststart",
+                        "-avoid_negative_ts", "make_zero", "-shortest", "-movflags", "+faststart",
                         f"{name}.mp4"]
             p = subprocess.run(join_cmd, cwd=work, capture_output=True, text=True,
                                encoding="utf-8", errors="replace", creationflags=NO_WINDOW, timeout=RENDER_SECONDS)
