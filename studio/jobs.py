@@ -11,6 +11,8 @@ import traceback
 import uuid
 from pathlib import Path
 
+import numpy as np
+
 from . import brain, config, creators, ctx, load, media, render, roman, safe, transcribe, usage
 
 class _FairQueue:
@@ -713,8 +715,11 @@ def _run_job(job):
                 s_lo = max(0, int(c["start"]))
                 s_hi = min(len(db), int(c["end"] - 3))
                 if s_hi > s_lo:
-                    peak_sec = s_lo + int(np.argmax(db[s_lo:s_hi]))
-                    t_start = float(peak_sec)
+                    try:
+                        peak_sec = s_lo + int(np.argmax(db[s_lo:s_hi]))
+                        t_start = float(peak_sec)
+                    except Exception:
+                        t_start = float(c["start"])
 
             c.update(id=f"clip{len(job['clips']) + 1:02d}", start=round(c["start"] + shift, 2),
                      end=round(c["end"] + shift, 2),
