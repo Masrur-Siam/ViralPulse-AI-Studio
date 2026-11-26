@@ -2211,7 +2211,7 @@ function drawClipDlg(full) {
   const j = jobOf(D.jid), c = j?.clips.find(x => x.id === D.cid), dlg = $("#clipdlg");
   if (!c) { if (dlg.open) dlg.close(); return; }
   const m = `/media/${j.id}/`, sig = c.status + c.version;
-  const stage = c.status === "done" ? `<video src="${m}${esc(c.file)}?v=${c.version}" poster="${m}${esc(c.cover)}?v=${c.version}" controls autoplay playsinline></video>`
+  const stage = c.status === "done" ? `<video src="${m}${esc(c.file)}?v=${c.version}&t=${Date.now()}" poster="${m}${esc(c.cover)}?v=${c.version}&t=${Date.now()}" controls autoplay playsinline></video>`
     : c.status === "error" ? `<div class="err" style="padding:20px;text-align:center">${esc(c.error || "Could not make this clip.")}</div>`
     : `<span class="making">${c.status === "rendering" ? "Making this clip…" : "Waiting its turn…"}</span>`;
   if (full) {
@@ -2324,7 +2324,10 @@ function drawClipDlg(full) {
           <button class="btn" data-act="copy" data-j="${j.id}" data-c="${esc(c.id)}">${ic("copy")}Copy post text</button></div>
       </div></div>`;
     setupTimelineEvents(c);
-  } else if (D.sig !== sig) $("#stage").innerHTML = stage;
+  } else if (D.sig !== sig) {
+    $("#stage").innerHTML = stage;
+    setupTimelineEvents(c);
+  }
   D.sig = sig;
   put($("#dposts"), postPills(c));
 }
@@ -2353,8 +2356,9 @@ function setupTimelineEvents(c) {
 
     if (syncVideo && v && isFinite(v.duration) && v.duration > 0) {
       const relTime = clamped - s;
-      if (isFinite(relTime)) {
-        v.currentTime = Math.max(0, Math.min(v.duration, relTime));
+      const targetTime = (c.teaser_hook ? 2.65 : 0) + relTime;
+      if (isFinite(targetTime)) {
+        v.currentTime = Math.max(0, Math.min(v.duration, targetTime));
       }
     }
   };
@@ -2362,7 +2366,18 @@ function setupTimelineEvents(c) {
   if (v) {
     v.addEventListener("timeupdate", () => {
       if (!playhead || !isFinite(v.duration) || v.duration <= 0) return;
-      const pct = Math.max(0, Math.min(100, (v.currentTime / v.duration) * 100));
+      let cur = v.currentTime;
+      let dur = v.duration;
+      if (c.teaser_hook && dur > 3.0) {
+        if (cur < 2.65) {
+          const hookPct = Math.max(0, Math.min(100, (cur / 2.65) * 100));
+          playhead.style.left = hookPct.toFixed(1) + "%";
+          return;
+        }
+        cur -= 2.65;
+        dur -= 2.65;
+      }
+      const pct = Math.max(0, Math.min(100, (cur / dur) * 100));
       playhead.style.left = pct.toFixed(1) + "%";
     });
   }
@@ -2410,9 +2425,10 @@ function setupTimelineEvents(c) {
     const { s } = getBounds();
     const t = Number(inp.value);
     const rel = Math.max(0, t - s);
-    v.currentTime = c.teaser_hook ? 0 : rel;
+    const targetTime = (c.teaser_hook ? 2.65 : 0) + rel;
+    v.currentTime = Math.max(0, Math.min(v.duration || 9999, targetTime));
     v.play();
-    toast("Previewing 3-second hook…", "ok");
+    toast(`Previewing 3s hook (${t.toFixed(1)}s - ${(t + 3.0).toFixed(1)}s)…`, "ok");
     if (previewTimer) clearTimeout(previewTimer);
     previewTimer = setTimeout(() => {
       v.pause();

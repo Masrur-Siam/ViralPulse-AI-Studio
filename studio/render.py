@@ -252,7 +252,9 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
                     clip.get("highlight_words", []), hook_y, cap_y)
     teaser_hook = bool(clip.get("teaser_hook", False))
     teaser_start = float(clip.get("teaser_start", start))
-    if teaser_start < start or teaser_start > max(start, end - 3.0):
+    if (end - start) >= 3.0:
+        teaser_start = max(start, min(end - 3.0, teaser_start))
+    else:
         teaser_start = start
     teaser_ass = ""
     if teaser_hook:
@@ -289,14 +291,14 @@ def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, la
     if anti_copyright:
         fc += f";[v]scale=iw*1.02:ih*1.02,crop={W}:{H},eq=contrast=1.03:brightness=0.01:saturation=1.05[v_safe]"
         out_v = "[v_safe]"
-        audio_af = "asetrate=48000*1.025,aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=11"
+        audio_af = "asetrate=48000*1.025,aresample=48000:async=1:first_pts=0"
         meta_args = ["-map_metadata", "-1"]
     else:
         out_v = "[v]"
-        audio_af = "loudnorm=I=-14:TP=-1.5:LRA=11"
+        audio_af = "aresample=async=1:first_pts=0"
         meta_args = []
     dur = max(0.1, e - s)
-    inputs = ["-ss", f"{s:.2f}", "-t", f"{dur:.2f}", "-i", str(src)]
+    inputs = ["-ss", f"{s:.2f}", "-avoid_negative_ts", "make_zero", "-t", f"{dur:.2f}", "-i", str(src)]
     if not has_audio:
         inputs += ["-f", "lavfi", "-t", f"{dur:.2f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
         audio_map = ["-map", "1:a"]
@@ -306,6 +308,7 @@ def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, la
     base = ["ffmpeg", "-y", "-v", "error"] + inputs + [
             "-filter_complex", fc, "-map", out_v] + audio_map + [
             "-af", audio_af, "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
+            "-avoid_negative_ts", "make_zero",
             "-movflags", "+faststart", *meta_args, "-threads", "0", "-pix_fmt"]
     encoders = []
     encoders.append(("nvenc", ["yuv420p", "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "22"]))
@@ -342,11 +345,16 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             # 2. Render main clip
             _encode_segment(work, src, "main", start, end, layout, fg_h, ass, anti_copyright, has_audio)
             # 3. Join with snappy viral white flash transition between teaser hook and main clip
-            join_fc = "[0:v][1:v]xfade=transition=fadewhite:duration=0.25:offset=2.75[v];[0:a][1:a]acrossfade=d=0.25[a]"
+            join_fc = (
+                "[0:v][1:v]xfade=transition=fadewhite:duration=0.35:offset=2.65[v];"
+                "[0:a][1:a]acrossfade=d=0.35:curve1=tri:curve2=tri[a0];"
+                "[a0]aresample=async=1:first_pts=0[a]"
+            )
             join_cmd = ["ffmpeg", "-y", "-v", "error", "-i", "teaser.mp4", "-i", "main.mp4",
                         "-filter_complex", join_fc, "-map", "[v]", "-map", "[a]",
                         "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
-                        "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart",
+                        "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
+                        "-avoid_negative_ts", "make_zero", "-movflags", "+faststart",
                         f"{name}.mp4"]
             p = subprocess.run(join_cmd, cwd=work, capture_output=True, text=True,
                                encoding="utf-8", errors="replace", creationflags=NO_WINDOW, timeout=RENDER_SECONDS)

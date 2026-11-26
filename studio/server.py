@@ -1204,7 +1204,7 @@ def media_file(jid: str, name: str, download: int = 0):
         clean = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", title).strip() if title else ""
         clean = re.sub(r"\s+", " ", clean).strip(" .")
         dl_name = f"{clean[:120]}.mp4" if clean else name
-    return FileResponse(f, filename=dl_name, headers={"Cache-Control": "private, max-age=300"})
+    return FileResponse(f, filename=dl_name, headers={"Cache-Control": "private, no-cache, no-store, must-revalidate"})
 
 
 # ================================================================ creators and live recording
