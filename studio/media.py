@@ -354,7 +354,7 @@ def find_motion_segments(video_path: Path, duration: float, min_len: int = 15, m
     if pts_times:
         # Bin motion detections into 1-second buckets
         num_secs = int(duration) + 2
-        motion_bins = np.zeros(num_secs, dtype=np.float32)
+        motion_bins = [0.0] * num_secs
         for t in pts_times:
             sec = int(t)
             if 0 <= sec < num_secs:
@@ -367,11 +367,14 @@ def find_motion_segments(video_path: Path, duration: float, min_len: int = 15, m
             e = min(duration, s + target_dur)
             if e - s < min_len:
                 break
-            score = float(motion_bins[s:int(e)].sum())
+            score = float(sum(motion_bins[s:int(e)]))
             if score > 0:
                 # Find peak second in this window for teaser hook
                 local_slice = motion_bins[s:max(s + 1, int(e - 3))]
-                peak_offset = int(np.argmax(local_slice)) if len(local_slice) > 0 else 0
+                try:
+                    peak_offset = local_slice.index(max(local_slice)) if local_slice else 0
+                except Exception:
+                    peak_offset = 0
                 teaser_start = round(s + peak_offset, 2)
                 scored_windows.append({"start": round(s, 2), "end": round(e, 2), "score": score, "teaser_start": teaser_start})
 

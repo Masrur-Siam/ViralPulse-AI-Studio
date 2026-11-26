@@ -710,16 +710,17 @@ def _run_job(job):
 
             # Calculate default 3-second teaser hook start at peak loudness or action
             t_start = c["start"]
-            c_dur = c["end"] - c["start"]
-            if c_dur > 3.0 and len(db) > 0:
-                s_lo = max(0, int(c["start"]))
-                s_hi = min(len(db), int(c["end"] - 3))
-                if s_hi > s_lo:
-                    try:
-                        peak_sec = s_lo + int(np.argmax(db[s_lo:s_hi]))
-                        t_start = float(peak_sec)
-                    except Exception:
-                        t_start = float(c["start"])
+            try:
+                c_dur = c["end"] - c["start"]
+                if c_dur > 3.0 and hasattr(db, "__len__") and len(db) > 0:
+                    s_lo = max(0, int(c["start"]))
+                    s_hi = min(len(db), int(c["end"] - 3))
+                    if s_hi > s_lo:
+                        vals = [float(db[k]) for k in range(s_lo, s_hi)]
+                        if vals:
+                            t_start = float(s_lo + vals.index(max(vals)))
+            except Exception:
+                t_start = float(c["start"])
 
             c.update(id=f"clip{len(job['clips']) + 1:02d}", start=round(c["start"] + shift, 2),
                      end=round(c["end"] + shift, 2),
@@ -734,7 +735,7 @@ def _run_job(job):
         job["done_blocks"] = bi + 1       # a restart from here on carries on with the next part
         save(job)
     if not job["clips"]:
-        # Fallback: visual screen movement & motion cluster analysis for silent/speechless videos
+        # Fallback 1: visual screen movement & motion cluster analysis for silent/speechless videos
         try:
             _set(job, stage="Analyzing visual motion and screen movement")
             vid_path = None
@@ -776,6 +777,46 @@ def _run_job(job):
         except Exception as e:
             traceback.print_exc()
             notes.append(f"Visual motion analysis failed: {safe.friendly(e, 100)}")
+
+    # Fallback 2: Guaranteed segment slicing so the user always has clips to edit on timeline
+    if not job["clips"]:
+        try:
+            total_dur = float(job.get("duration") or 0)
+            if total_dur <= 0:
+                total_dur = 60.0
+            clip_dur = max(float(o["min_len"]), min(float(o["max_len"]), 30.0))
+            max_c = int(o["max_clips"])
+            step = max(clip_dur, total_dur / max(1, max_c))
+            curr = float(o.get("range_start") or 0)
+            end_limit = float(o.get("range_end") or total_dur)
+            while curr + min(5.0, clip_dur) <= end_limit and len(job["clips"]) < max_c:
+                c_end = min(end_limit, curr + clip_dur)
+                idx = len(job["clips"]) + 1
+                c = {
+                    "id": f"clip{idx:02d}",
+                    "start": round(curr, 2),
+                    "end": round(c_end, 2),
+                    "score": 85,
+                    "title": f"{(job.get('title') or 'Highlight')[:40]} Part {idx}",
+                    "hook": f"Watch this part #{idx}",
+                    "description": f"Highlight moment from {job.get('title') or 'video'}.",
+                    "hashtags": ["#viral", "#shorts", "#trending", "#fyp"],
+                    "reason": "Highlight segment (ready for manual timeline editing)",
+                    "teaser_hook": bool(o.get("teaser_hook", True)),
+                    "teaser_start": round(curr, 2),
+                    "style": o.get("style") if o.get("style") != "auto" else "hype",
+                    "layout": o.get("layout") if o.get("layout") != "auto" else "blur",
+                    "topic": "highlight",
+                    "anti_copyright": bool(o.get("anti_copyright", False)),
+                    "status": "queued",
+                    "version": 0
+                }
+                job["clips"].append(c)
+                futures.append((renders.submit(ctx.bind(make), c, list(words)), c))
+                curr += step
+            save(job)
+        except Exception as e:
+            traceback.print_exc()
     if futures:
         _set(job, stage="Finishing the clips", progress=max(job["progress"], 0.92))
     _wait_for_clips(job, futures, began, renders._max_workers)
