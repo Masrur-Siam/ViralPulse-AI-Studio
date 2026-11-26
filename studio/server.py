@@ -75,6 +75,20 @@ def _startup():
     posting.start()
     from . import updates
     updates.start()                  # looks for a newer PeakCut every minute, in the background
+    if not os.environ.get("PEAKCUT_TEST_PORT") and os.environ.get("VIRALPULSE_NO_BROWSER") != "1":
+        def _open_when_ready():
+            import urllib.request
+            import webbrowser
+            url = f"http://127.0.0.1:{config.PORT}/app"
+            for _ in range(50):
+                time.sleep(0.2)
+                try:
+                    with urllib.request.urlopen(f"http://127.0.0.1:{config.PORT}/healthz", timeout=0.5):
+                        webbrowser.open(url)
+                        return
+                except Exception:
+                    pass
+        threading.Thread(target=_open_when_ready, daemon=True).start()
 
 
 # ================================================================ the gate: who is asking, and are they allowed

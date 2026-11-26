@@ -19,11 +19,10 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8765 ^| findstr LISTENING') 
     taskkill /F /PID %%a >nul 2>&1
 )
 
-timeout /t 1 /nobreak >nul
+echo [*] Launching Studio Engine...
+echo [*] Browser will open automatically once the engine is ready.
+echo.
 
-:: Open browser directly to ViralPulse Studio
-start "" http://127.0.0.1:8765
-
-:: Start ViralPulse Studio server (auto-terminates when browser is closed)
+:: Start ViralPulse Studio server (browser opens automatically as soon as port is ready)
 ".venv\Scripts\python.exe" -m studio.server
 exit
