@@ -283,9 +283,35 @@ def _has_audio(path: Path) -> bool:
         return False
 
 
+_DETECTED_ENCODER = None
+
+
+def _get_best_encoder():
+    global _DETECTED_ENCODER
+    if _DETECTED_ENCODER is not None:
+        return _DETECTED_ENCODER
+    candidates = [
+        ("qsv", ["-pix_fmt", "nv12", "-c:v", "h264_qsv", "-global_quality", "23", "-preset", "veryfast"]),
+        ("nvenc", ["-pix_fmt", "yuv420p", "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "22"]),
+        ("amf", ["-pix_fmt", "yuv420p", "-c:v", "h264_amf", "-quality", "speed"]),
+        ("mf", ["-pix_fmt", "nv12", "-c:v", "h264_mf"]),
+    ]
+    for name, args in candidates:
+        try:
+            p = subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "nullsrc=s=256x256:d=0.1",
+                                *args, "-f", "null", "-"],
+                               capture_output=True, timeout=2, creationflags=NO_WINDOW)
+            if p.returncode == 0:
+                _DETECTED_ENCODER = (name, args)
+                return _DETECTED_ENCODER
+        except Exception:
+            pass
+    _DETECTED_ENCODER = ("x264", ["-pix_fmt", "yuv420p", "-c:v", "libx264", "-crf", "21", "-preset", "veryfast"])
+    return _DETECTED_ENCODER
+
+
 def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, layout: str, fg_h: int,
                     ass_str: str, anti_copyright: bool, has_audio: bool):
-    global _qsv_ok
     src_path = Path(src).resolve()
     (work / f"{seg_name}.ass").write_text(ass_str, encoding="utf-8")
     fc = _filter(layout, fg_h) + f"[v0]ass={seg_name}.ass:fontsdir=f[v]"
@@ -311,23 +337,18 @@ def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, la
             "-filter_complex", fc, "-map", out_v] + audio_map + [
             "-af", audio_af, "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
             "-avoid_negative_ts", "make_zero", "-shortest",
-            "-movflags", "+faststart", *meta_args, "-threads", "0", "-pix_fmt"]
-    encoders = []
-    encoders.append(("nvenc", ["yuv420p", "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "22"]))
-    if _qsv_ok is not False:
-        encoders.append(("qsv", ["nv12", "-c:v", "h264_qsv", "-global_quality", "23", "-preset", "fast"]))
-    encoders.append(("x264", ["yuv420p", "-c:v", "libx264", "-crf", "21", "-preset", "veryfast"]))
+            "-movflags", "+faststart", *meta_args, "-threads", "0"]
+    best_name, best_args = _get_best_encoder()
+    encoders = [(best_name, best_args)]
+    if best_name != "x264":
+        encoders.append(("x264", ["-pix_fmt", "yuv420p", "-c:v", "libx264", "-crf", "21", "-preset", "veryfast"]))
     err = None
     for label, enc in encoders:
         p = subprocess.run(base + enc + [f"{seg_name}.mp4"], cwd=work, capture_output=True, text=True,
                            encoding="utf-8", errors="replace", creationflags=NO_WINDOW, timeout=RENDER_SECONDS)
         if p.returncode == 0:
-            if label == "qsv":
-                _qsv_ok = True
             break
         err = p.stderr[-1200:]
-        if label == "qsv":
-            _qsv_ok = False
     else:
         if has_audio:
             # Fallback: source audio track failed or was unreadable, retry with synthesized stereo audio
@@ -355,9 +376,16 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                 "[0:a][1:a]acrossfade=d=0.35:curve1=tri:curve2=tri[a0];"
                 "[a0]asetpts=PTS-STARTPTS,aresample=async=1000:min_hard_comp=0.100000:first_pts=0,aformat=channel_layouts=stereo:sample_rates=48000,apad[a]"
             )
+            best_name, _ = _get_best_encoder()
+            if best_name == "qsv":
+                join_v = ["-c:v", "h264_qsv", "-global_quality", "23", "-preset", "veryfast", "-pix_fmt", "nv12"]
+            elif best_name == "nvenc":
+                join_v = ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "22", "-pix_fmt", "yuv420p"]
+            else:
+                join_v = ["-c:v", "libx264", "-crf", "20", "-preset", "veryfast", "-threads", "0"]
             join_cmd = ["ffmpeg", "-y", "-v", "error", "-i", "teaser.mp4", "-i", "main.mp4",
                         "-filter_complex", join_fc, "-map", "[v]", "-map", "[a]",
-                        "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
+                        *join_v,
                         "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
                         "-avoid_negative_ts", "make_zero", "-shortest", "-movflags", "+faststart",
                         f"{name}.mp4"]

@@ -19,7 +19,7 @@ _lock = threading.Lock()
 # machine (under 8 cores) this is still a single copy, as before.
 _CPUS = os.cpu_count() or 4
 PROVIDER = os.environ.get("PEAKCUT_ASR_PROVIDER", "cpu").strip().lower() or "cpu"      # "cuda" on a graphics card
-THREADS = int(os.environ.get("PEAKCUT_ASR_THREADS") or (4 if _CPUS >= 8 else max(2, _CPUS - 2)))
+THREADS = int(os.environ.get("PEAKCUT_ASR_THREADS") or max(2, min(8, _CPUS)))
 COPIES = int(os.environ.get("PEAKCUT_ASR_COPIES") or (1 if PROVIDER != "cpu" else max(1, _CPUS // THREADS) if _CPUS >= 8 else 1))
 _free: "queue.LifoQueue" = queue.LifoQueue()
 _made = 0

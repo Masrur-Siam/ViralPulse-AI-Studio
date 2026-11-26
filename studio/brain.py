@@ -214,7 +214,7 @@ def ask_ai(prompt, schema=None, purpose="AI call"):
         raise RuntimeError("The AI is not set up on this server.")
     last = None
     for model in ai.models():
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 out, sent, wrote = ai.call(model, prompt, schema or SCHEMA)
                 usage.record(sent, wrote, purpose)
@@ -222,8 +222,11 @@ def ask_ai(prompt, schema=None, purpose="AI call"):
                 return out, model, sent + wrote
             except Exception as e:  # noqa: BLE001
                 last = e
-                if "HTTP 429" in str(e) or "HTTP 5" in str(e):
-                    time.sleep(4 * (attempt + 1))
+                # If model is not found (404), unavailable/high-demand (503), or unknown, try next model immediately
+                if any(k in str(e).lower() for k in ("404", "503", "not found", "unavailable", "does not exist")):
+                    break
+                if "429" in str(e) or "quota" in str(e).lower():
+                    time.sleep(1.5 * (attempt + 1))
                     continue
                 break
     ai.note_problem(last)
@@ -485,7 +488,32 @@ def fallback_by_loudness(db, words, n, max_len, duration, heatmap=None, min_len=
     return picks
 
 
+def enhance_clips_with_ai(clips, words, title="", uploader=""):
+    """Give all clips high-retention AI hooks, titles, and viral scores."""
+    if not config.ai_ready() or not clips:
+        return clips
+    for c in clips:
+        if c.get("ai_enhanced") or (c.get("score", 0) >= 90 and c.get("hook")):
+            continue
+        slice_words = [w["w"] for w in (words or []) if c["start"] <= w.get("s", 0) <= c["end"]]
+        snippet = " ".join(slice_words[:120])
+        if len(snippet.split()) < 3:
+            continue
+        try:
+            desc = describe(snippet, title=title, uploader=uploader)
+            if desc and desc.get("hook"):
+                c["hook"] = desc["hook"]
+                c["title"] = desc.get("title") or c.get("title")
+                c["score"] = max(c.get("score", 70), desc.get("score", 85))
+                c["hashtags"] = desc.get("hashtags") or c.get("hashtags", ["Shorts", "Viral"])
+                c["ai_enhanced"] = True
+        except Exception:
+            pass
+    return clips
+
+
 def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=15, max_len=60, log=print, heatmap=None, user_prompt=""):
+    from concurrent.futures import ThreadPoolExecutor
     z = loud_zscore(db)
     lines = make_lines(words, z, heatmap=heatmap)
     if not lines:
@@ -507,19 +535,34 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
         t += WINDOW_SEC - OVERLAP_SEC
     per_window = max(2, min(8, int(np.ceil(max_clips * 1.5 / len(windows))) + 1))
     custom_inst = f"\nUSER INSTRUCTION: {_safe(user_prompt, 300)}\nHeavily prioritize and pick moments matching this instruction!\n" if user_prompt else ""
+
+    valid_windows = []
     for a, b in windows:
         chunk = [l for l in lines if a <= l["s"] < b]
-        if len(chunk) < 3:
-            continue
-        prompt = (HEAD.format(title=_safe(title) or "unknown", uploader=_safe(uploader) or "unknown", n=per_window)
-                  + custom_inst
-                  + RULES.format(min_len=min_len, max_len=max_len, transcript=_fmt(chunk)))
+        if len(chunk) >= 3:
+            prompt = (HEAD.format(title=_safe(title) or "unknown", uploader=_safe(uploader) or "unknown", n=per_window)
+                      + custom_inst
+                      + RULES.format(min_len=min_len, max_len=max_len, transcript=_fmt(chunk)))
+            valid_windows.append((a, b, prompt))
+
+    def _query_win(item):
+        wa, wb, wp = item
         try:
-            out, used_model, spent = ask_ai(prompt, purpose="Video: finding clips")
-            tokens += spent
-            found += [c for c in out if isinstance(c, dict) and a - 5 <= float(c.get("start", -1)) < b]
-        except Exception as e:  # noqa: BLE001
-            log(f"AI window {a:.0f}-{b:.0f}s failed: {e}")
+            w_out, w_mod, w_spent = ask_ai(wp, purpose="Video: finding clips")
+            w_found = [c for c in w_out if isinstance(c, dict) and wa - 5 <= float(c.get("start", -1)) < wb]
+            return w_found, w_mod, w_spent
+        except Exception as e:
+            log(f"AI window {wa:.0f}-{wb:.0f}s failed: {e}")
+            return [], None, 0
+
+    if valid_windows:
+        with ThreadPoolExecutor(max_workers=min(4, len(valid_windows))) as pool:
+            for w_found, w_mod, w_spent in pool.map(_query_win, valid_windows):
+                found += w_found
+                tokens += w_spent
+                if w_mod:
+                    used_model = w_mod
+
     note = ""
     if not used_model:
         found = fallback_by_loudness(db, words, max_clips, max_len, duration, heatmap=heatmap, min_len=min_len)
@@ -544,6 +587,8 @@ def find_clips(words, db, duration, title="", uploader="", max_clips=6, min_len=
                 clips.append(_tidy(c, s, e))
                 if len(clips) >= max_clips:
                     break
+    if used_model:
+        clips = enhance_clips_with_ai(clips, words, title=title, uploader=uploader)
     clips.sort(key=lambda c: c["start"])
     return clips, {"model": used_model, "tokens": tokens, "note": note}
 

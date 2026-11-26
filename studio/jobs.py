@@ -110,7 +110,7 @@ _lock = threading.RLock()
 on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first finishes
 
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "blur", "quality": 720,
-            "range_start": None, "range_end": None, "anti_copyright": False, "teaser_hook": True}
+            "range_start": None, "range_end": None, "anti_copyright": False, "teaser_hook": True, "prompt": ""}
 
 
 LIMITS = {"max_clips": (1, 20), "min_len": (5, 120), "max_len": (10, 180), "quality": (360, 1080)}
@@ -131,6 +131,8 @@ def clean_options(options) -> dict:
             v = v if v in render.LAYOUTS else DEFAULTS["layout"]
         elif k in ("anti_copyright", "teaser_hook"):
             v = bool(v)
+        elif k == "prompt":
+            v = str(v).strip()[:500]
         else:                                    # range_start, range_end: seconds into the video
             v = float(v)
             if not math.isfinite(v) or v < 0:
@@ -604,9 +606,8 @@ def _run_job(job):
         began[clip["id"]] = time.time()
         if src["type"] == "url" and (pieces or not whole_video()):
             _fetch_piece(job, clip, audio)
-        if clip["status"] != "error" and yt and yt[1].lower().startswith("en"):
-            # The clip was found with YouTube's transcript. What is shown on screen comes from our own model,
-            # run on just this clip: full punctuation, nothing blanked out, timings to the word.
+        if clip["status"] != "error" and (not words_now or len(words_now) < 3) and yt and yt[1].lower().startswith("en"):
+            # The clip was found with YouTube's transcript. Only re-transcribe if words are completely missing
             a0, b0 = max(lo, int((clip["start"] - 1.5) * 16000)), min(hi, int((clip["end"] + 1.5) * 16000))
             try:
                 tw = [dict(w, s=round(w["s"] + a0 / 16000, 2), e=round(w["e"] + a0 / 16000, 2)) for w in transcribe.transcribe(audio[a0:b0])]
@@ -619,7 +620,7 @@ def _run_job(job):
             render_one(job, clip, words_now)
 
     cpus = os.cpu_count() or 4
-    renders = ThreadPoolExecutor(2 if cpus < 8 else min(6, cpus // 6))  # more clips made at once on a bigger machine
+    renders = ThreadPoolExecutor(max(2, min(4, cpus)))  # parallel clip rendering
     futures = []
     step = BLOCK * 16000 if span > PROGRESSIVE_FROM else hi - lo
     blocks = [(x, min(hi, x + step)) for x in range(lo, hi, step)] or [(lo, hi)]
@@ -691,9 +692,22 @@ def _run_job(job):
             continue
         quota = max(1, math.ceil(left / (len(blocks) - bi)))
         s0 = int((a - lo) / 16000)
+        # Shift heatmap points into the current block's relative timeframe
+        block_heatmap = None
+        if job.get("heatmap") and isinstance(job["heatmap"], list):
+            block_heatmap = []
+            for pt in job["heatmap"]:
+                pt_s = float(pt.get("start_time") or 0.0)
+                pt_e = float(pt.get("end_time") or (pt_s + 5.0))
+                if a / 16000 <= pt_s < b / 16000:
+                    block_heatmap.append({
+                        **pt,
+                        "start_time": round(pt_s - shift, 2),
+                        "end_time": round(pt_e - shift, 2)
+                    })
         found, ai = brain.find_clips(bw, db[s0: s0 + int((b - a) / 16000) + 1], (b - a) / 16000, job["title"],
                                      job["uploader"], quota, int(o["min_len"]), int(o["max_len"]), notes.append,
-                                     heatmap=job.get("heatmap"), user_prompt=o.get("prompt", ""))
+                                     heatmap=block_heatmap, user_prompt=o.get("prompt", ""))
         tokens += ai.get("tokens", 0)
         model = ai.get("model") or model
         if ai.get("note"):
@@ -735,6 +749,43 @@ def _run_job(job):
         job["done_blocks"] = bi + 1       # a restart from here on carries on with the next part
         save(job)
     # Check if more clips are needed to fulfill the requested clip count
+    needed = int(o["max_clips"]) - len(job["clips"])
+    total_dur = float(job.get("duration") or (len(db) if hasattr(db, "__len__") else 0) or span / 16000)
+    if needed > 0 and config.ai_ready() and len(words) >= 8:
+        # Full-video AI pass to find remaining high-retention moments
+        try:
+            _set(job, stage="AI selecting viral moments across video")
+            ai_found, ai_res = brain.find_clips(
+                words, db, total_dur, job["title"], job["uploader"],
+                max_clips=needed, min_len=int(o["min_len"]), max_len=int(o["max_len"]),
+                log=notes.append, heatmap=job.get("heatmap"), user_prompt=o.get("prompt", "")
+            )
+            tokens += ai_res.get("tokens", 0)
+            model = ai_res.get("model") or model
+            for c in ai_found:
+                if not any(not (c["end"] <= oc["start"] or c["start"] >= oc["end"]) for oc in job["clips"]):
+                    clip_layout = o.get("layout", "auto")
+                    if clip_layout in ("auto", None):
+                        clip_layout = c.get("recommended_layout") or ("crop" if c.get("topic") in ("podcast", "education", "reaction") else "zoom" if c.get("topic") == "gaming" else "blur")
+                    clip_style = o.get("style", "auto")
+                    if clip_style in ("auto", None):
+                        clip_style = c.get("recommended_style") or ("clean" if c.get("topic") in ("podcast", "tech", "education") else "bounce" if c.get("topic") in ("gaming", "comedy") else "hype")
+                    t_start = c["start"]
+                    c.update(id=f"clip{len(job['clips']) + 1:02d}", start=round(c["start"], 2),
+                             end=round(c["end"], 2),
+                             teaser_hook=bool(o.get("teaser_hook", True)),
+                             teaser_start=round(t_start, 2),
+                             style=clip_style, layout=clip_layout,
+                             topic=c.get("topic", "other"),
+                             anti_copyright=bool(o.get("anti_copyright", False)), status="queued", version=0)
+                    job["clips"].append(c)
+                    futures.append((renders.submit(ctx.bind(make), c, list(words)), c))
+                    if len(job["clips"]) >= int(o["max_clips"]):
+                        break
+            save(job)
+        except Exception as e:
+            notes.append(f"AI full pass failed: {safe.friendly(e, 80)}")
+
     needed = int(o["max_clips"]) - len(job["clips"])
     if needed > 0:
         # Cascade 1: Global Audience Retention Heatmap & Soundtrack Energy across entire video
@@ -880,6 +931,12 @@ def _run_job(job):
     ahead.shutdown(wait=False)
     fetch.shutdown(wait=False)
     del audio
+    # AI Enrichment: Give every clip viral hooks, smart titles, and hashtags
+    if (model or config.ai_ready()) and words:
+        try:
+            job["clips"] = brain.enhance_clips_with_ai(job["clips"], words, job.get("title", ""), job.get("uploader", ""))
+        except Exception:
+            pass
     clips = job["clips"]
     ai_note = ""
     if clips and not model:

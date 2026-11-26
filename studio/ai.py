@@ -19,17 +19,20 @@ from . import config
 
 # name -> (label shown on the pages, address, how it is spoken to, where to get a key, an example model id)
 PROVIDERS = {
-    "gemini": ("Gemini", "https://generativelanguage.googleapis.com/v1beta/models", "gemini", "https://aistudio.google.com/apikey", "gemini-2.5-flash"),
+    "gemini": ("Gemini", "https://generativelanguage.googleapis.com/v1beta/models", "gemini", "https://aistudio.google.com/apikey", "gemini-flash-lite-latest"),
     "openai": ("OpenAI", "https://api.openai.com/v1", "openai", "https://platform.openai.com/api-keys", "gpt-4o-mini"),
     "xai": ("Grok", "https://api.x.ai/v1", "openai", "https://console.x.ai", "grok-4"),
     "groq": ("Groq", "https://api.groq.com/openai/v1", "openai", "https://console.groq.com/keys", "llama-3.3-70b-versatile"),
-    "openrouter": ("OpenRouter", "https://openrouter.ai/api/v1", "openai", "https://openrouter.ai/keys", "google/gemini-2.5-flash"),
+    "openrouter": ("OpenRouter", "https://openrouter.ai/api/v1", "openai", "https://openrouter.ai/keys", "google/gemini-2.0-flash-001"),
     "anthropic": ("Claude", "https://api.anthropic.com/v1", "anthropic", "https://console.anthropic.com", ""),
     "ollama": ("Ollama (on this machine)", "http://127.0.0.1:11434/v1", "openai", "https://ollama.com", "llama3.1"),
     "custom": ("Custom (OpenAI-compatible)", "", "openai", "", ""),
 }
 ALIASES = {"google": "gemini", "grok": "xai", "claude": "anthropic", "local": "ollama"}
 NO_KEY = {"ollama", "custom"}       # a model running on your own machine needs no key
+
+GEMINI_DEFAULTS = ["gemini-flash-lite-latest", "gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+DEPRECATED_GEMINI = {"gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.5-flash-preview", "gemini-pro"}
 
 # ---------------------------------------------------------------- the settings in use
 _lock = threading.Lock()
@@ -59,9 +62,19 @@ def _from_dashboard() -> dict:
 def current() -> dict:
     """Provider, models, address and key: what the dashboard saved, or else what .env says."""
     d = _from_dashboard()
-    p = str(d.get("provider") or config.AI_PROVIDER or "").strip().lower()
-    return {"provider": ALIASES.get(p, p),
-            "models": list(d["models"]) if d.get("provider") else list(config.AI_MODELS),
+    raw_p = str(d.get("provider") or config.AI_PROVIDER or "").strip().lower()
+    p = ALIASES.get(raw_p, raw_p)
+    raw_models = list(d["models"]) if d.get("provider") else list(config.AI_MODELS)
+    # Auto-migrate deprecated Gemini models to currently working ones
+    if p == "gemini":
+        cleaned_models = [m for m in raw_models if m not in DEPRECATED_GEMINI]
+        if not cleaned_models:
+            cleaned_models = list(GEMINI_DEFAULTS)
+        models_list = cleaned_models
+    else:
+        models_list = raw_models
+    return {"provider": p,
+            "models": models_list,
             "base_url": (str(d.get("base_url") or "") if d.get("provider") else config.AI_BASE_URL).rstrip("/"),
             "key": str(d["key"]) if d.get("provider") and "key" in d else config.ai_key()}
 
