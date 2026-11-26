@@ -720,8 +720,19 @@ def status(request: Request):
         "facebook": "https://www.facebook.com/MasrurSiam.gg",
         "website": "https://masrur-siam.github.io/"
     }
+    lan_ip = "127.0.0.1"
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        lan_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+    lan_url = f"http://{lan_ip}:{config.PORT}"
     return {"user": auth.public(me_), "update": updates.latest() if me_.is_admin else None, "accounts": config.ACCOUNTS, "disk_full": load.disk_full(), "no_ffmpeg": bool(_tools.missing()), "links": links, "ai": usage.brief(), "unread": notices.unread(),
             "tour": not accounts.settings()["tour_done"],
+            "lan_url": lan_url,
             "youtube": accounts.youtube_ready(), "connect": {p: accounts.can_connect(p) for p in accounts.PLATFORM_NAMES}, "max_upload_mb": config.MAX_UPLOAD_MB, "upload_part_mb": config.UPLOAD_PART_MB, "max_batch": config.MAX_ACTIVE_JOBS_PER_USER,
             "styles": {"auto": "✨ Auto AI (Topic-Based)", **{k: v["label"] for k, v in render.STYLES.items()}},
             "layouts": {"auto": "✨ Auto AI (Topic-Based)", **render.LAYOUTS}}

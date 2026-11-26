@@ -49,14 +49,32 @@ ViralPulse AI Studio is designed to run in just 1-2 clicks with zero manual conf
 
 ### 🪟 Windows (Recommended)
 
-#### Option A: 1-Click Launch (Automatic Setup)
-1. Download this repository as a **ZIP** and extract it to any folder.
-2. Double-click **`Launch_ViralPulse.bat`**.
-   - If it's your first time running, it will automatically install dependencies, set up the environment, download the speech model, create a **Desktop shortcut**, and launch the studio in your browser (`http://127.0.0.1:8765`).
-   - On future launches, simply double-click the **ViralPulse AI Studio** Desktop shortcut!
+#### Option 1: Native Desktop Software (1-Click Run - No Terminal / No Browser)
+1. Download or clone this repository to any folder.
+2. Double-click **`create_desktop_shortcut.py`** or run **`ViralPulse AI Studio.vbs`**.
+   - A dedicated **ViralPulse AI Studio** icon will be placed directly on your Windows Desktop.
+   - Simply double-click the Desktop icon or **`ViralPulse AI Studio.vbs`** to open the standalone app window.
+   - **No Python installed?** Don't worry! Double-clicking **`ViralPulse AI Studio.bat`** automatically downloads the isolated portable Python runtime (~25MB) and starts the software with zero manual setup.
 
-#### Option B: Dedicated Setup Script
-Double-click **`Setup_Windows.bat`** to run the complete automated environment check, dependency installation, and desktop shortcut generation.
+#### Option 2: Build a 100% Standalone `.exe` (For USB / Any PC)
+To package the entire studio into a standalone executable that runs on any PC without Python:
+```bash
+python build_standalone_exe.py
+```
+This produces `dist/ViralPulse AI Studio/ViralPulse AI Studio.exe` which can be shared on a USB drive or copied to any computer.
+
+#### Option 3: Traditional Script Launch
+- Run **`Launch_ViralPulse.bat`** or **`Setup_Windows.bat`** to run in traditional browser-assisted mode.
+
+---
+
+### 📱 Multi-Device & Wi-Fi Access (Phone, Tablet, Laptop)
+
+ViralPulse AI Studio can be accessed across any device connected to the same Wi-Fi network:
+1. Start the software on your primary computer.
+2. The software binds to `0.0.0.0` and displays your local network address (e.g., `http://192.168.1.15:8765`).
+3. Open that address in Safari or Chrome on your **iPhone, Android, iPad, or another laptop**.
+4. You can queue videos, review generated clips, and control the studio directly from your phone!
 
 ---
 
@@ -100,6 +118,23 @@ Double-click **`Setup_Windows.bat`** to run the complete automated environment c
 2. **AI Analysis**: The engine downloads the audio/video stream, analyzes engagement peaks or chat velocity, and extracts the best moments.
 3. **Review & Customize**: Preview generated shorts, fine-tune subtitle colors, customize SEO titles and hashtags.
 4. **Export & Share**: Download 1080x1920 MP4 clips individually or download all clips at once in a ZIP archive.
+
+---
+
+## 🤖 AI Configuration (Free & Premium Options)
+
+ViralPulse AI Studio supports multiple AI providers:
+- **Google Gemini (Recommended & 100% Free)**: Get a free API key at [Google AI Studio](https://aistudio.google.com/apikey). ViralPulse uses ultra-fast `gemini-flash-lite-latest` and `gemini-3.8-flash` models.
+- **OpenAI**: Connect GPT-4o-mini or GPT-4o with your OpenAI API key.
+- **Groq**: High-speed Llama-3.3-70B models with zero latency.
+- **Anthropic Claude**: Connect Claude 3.5 Sonnet / Haiku.
+- **Ollama (100% Offline)**: Run local open-source LLMs directly on your computer without internet access or API fees.
+
+### How to configure your key:
+1. Open ViralPulse AI Studio.
+2. Go to **Settings -> AI Engine & Key**.
+3. Choose your provider (e.g., Google Gemini), paste your key, and click **Save API Key**.
+4. Your key is stored strictly on your local computer (`data/ai.json`) and is never committed or uploaded anywhere.
 
 ---
 
