@@ -2,6 +2,8 @@
 
 Nothing here can be undone, so every caller asks the person first. Work in progress is never pulled out from under
 itself: a video still being made, or a stream still being recorded, has to finish or be stopped first."""
+import json
+import re
 import shutil
 import time
 import zipfile
@@ -87,7 +89,18 @@ def zip_clips(clip_ids: list, limit_gb: float = 4.0) -> Path:
         total += f.stat().st_size
         if total > limit_gb * 1e9:
             raise ValueError(f"That is more than {limit_gb:g} GB of clips. Download them in smaller groups.")
-        base = "".join(ch if ch.isalnum() or ch in " -_" else "" for ch in (clip.get("title") or clip.get("hook") or cid))[:60].strip() or cid
+        title = (clip.get("title") or clip.get("hook") or "").strip()
+        if not title:
+            try:
+                cjson = Path(job["dir"]) / "clips" / f"{cid}.json"
+                if cjson.is_file():
+                    cdata = json.loads(cjson.read_text(encoding="utf-8"))
+                    title = (cdata.get("title") or cdata.get("hook") or "").strip()
+            except Exception:
+                pass
+        clean = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", title).strip() if title else ""
+        clean = re.sub(r"\s+", " ", clean).strip(" .")
+        base = clean[:120].strip(" .") if clean else cid
         name, n = f"{base}.mp4", 2
         while name.lower() in seen:
             name, n = f"{base} ({n}).mp4", n + 1

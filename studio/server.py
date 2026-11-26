@@ -1134,7 +1134,7 @@ def clips_zip(ids: str = ""):
     except ValueError as e:
         raise HTTPException(400, str(e))
     from starlette.background import BackgroundTask
-    return FileResponse(f, filename=f"peakcut-clips-{len(pairs)}.zip", media_type="application/zip",
+    return FileResponse(f, filename="clips.zip", media_type="application/zip",
                         headers={"Cache-Control": "private, no-store"}, background=BackgroundTask(lambda: f.unlink(missing_ok=True)))
 
 
@@ -1170,10 +1170,27 @@ def delete_my_account(request: Request, body: dict = Body(...)):
 def media_file(jid: str, name: str, download: int = 0):
     if not re.fullmatch(r"[\w\-]+\.(mp4|jpg)", name):
         raise HTTPException(404)
-    f = Path(_job_or_404(jid)["dir"]) / "clips" / name
+    job = _job_or_404(jid)
+    f = Path(job["dir"]) / "clips" / name
     if not f.is_file():
         raise HTTPException(404)
-    return FileResponse(f, filename=name if download else None, headers={"Cache-Control": "private, max-age=300"})
+    dl_name = None
+    if download:
+        cid = name.split(".")[0]
+        clip = next((c for c in job.get("clips", []) if c.get("id") == cid or c.get("file") == name), None)
+        title = (clip.get("title") or clip.get("hook") or "").strip() if clip else ""
+        if not title:
+            try:
+                cjson = Path(job["dir"]) / "clips" / f"{cid}.json"
+                if cjson.is_file():
+                    cdata = json.loads(cjson.read_text(encoding="utf-8"))
+                    title = (cdata.get("title") or cdata.get("hook") or "").strip()
+            except Exception:
+                pass
+        clean = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", title).strip() if title else ""
+        clean = re.sub(r"\s+", " ", clean).strip(" .")
+        dl_name = f"{clean[:120]}.mp4" if clean else name
+    return FileResponse(f, filename=dl_name, headers={"Cache-Control": "private, max-age=300"})
 
 
 # ================================================================ creators and live recording

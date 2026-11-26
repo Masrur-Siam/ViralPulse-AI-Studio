@@ -1722,6 +1722,10 @@ function postPills(c) {
     return p.url ? `<a class="pill ${cls}" href="${esc(p.url)}" target="_blank" rel="noopener">${txt}</a>` : `<span class="pill ${cls}" title="${esc(p.error || "")}">${txt}</span>`;
   }).join("");
 }
+function safeDlName(str) {
+  const clean = (str || "clip").replace(/[<>:"/\\|?*\x00-\x1f]/g, "").trim().replace(/\s+/g, " ").slice(0, 100).replace(/[. ]+$/, "") || "clip";
+  return clean + ".mp4";
+}
 function clipHtml(j, c) {
   const m = `/media/${j.id}/`, a = `data-j="${j.id}" data-c="${esc(c.id)}"`;
   const body = c.status === "done" ? `<img src="${m}${esc(c.cover)}?v=${c.version}" alt="" loading="lazy"><span class="veil"><span>${ic("play")}</span></span>`
@@ -1740,7 +1744,7 @@ function clipHtml(j, c) {
       ${postPills(c) ? `<div class="row" style="gap:4px">${postPills(c)}</div>` : ""}
       <div class="clip-foot">
         ${busyClip ? "" : `<label class="selck" title="Select this clip"><input type="checkbox" data-sel="${key}" ${sel().has(key) ? "checked" : ""} aria-label="Select this clip"></label>`}
-        ${c.status === "done" ? `<a class="btn sm icon ghost" href="${m}${esc(c.file)}?download=1" title="Download" aria-label="Download">${ic("down")}</a>` : ""}
+        ${c.status === "done" ? `<a class="btn sm icon ghost" href="${m}${esc(c.file)}?download=1" download="${esc(safeDlName(c.title || c.hook || c.id))}" title="Download" aria-label="Download">${ic("down")}</a>` : ""}
         <button class="btn sm icon ghost" data-act="copyseo" ${a} title="Copy YouTube SEO Title & Tags" aria-label="Copy YouTube SEO Title & Tags">${ic("copy")}</button>
         ${busyClip ? "" : `<button class="btn sm icon ghost" data-act="delclip" ${a} title="Delete this clip" aria-label="Delete this clip">${ic("trash")}</button>`}
         <span class="grow"></span>
@@ -1826,7 +1830,7 @@ function zipDownload(ids) {
   if (!ids.length) return toast("None of those clips are ready to download yet.");
   if (ids.length > 150) return toast("That is a lot at once. Download up to 150 clips at a time.", "bad");
   toast(ids.length === 1 ? "Preparing your clip…" : `Preparing ${ids.length} clips as one download…`, "ok");
-  const a = document.createElement("a"); a.href = "/api/clips.zip?ids=" + encodeURIComponent(ids.join(",")); a.download = ""; document.body.append(a); a.click(); a.remove();
+  const a = document.createElement("a"); a.href = "/api/clips.zip?ids=" + encodeURIComponent(ids.join(",")); a.download = "clips.zip"; document.body.append(a); a.click(); a.remove();
 }
 function askTyped(title, text, mustType, okLabel) {
   return new Promise(res => {
@@ -2218,7 +2222,7 @@ function drawClipDlg(full) {
           <div class="row"><button class="btn primary" data-act="postnow">${ic("send")}Post now</button><button class="btn" data-act="postqueue">Add to queue</button></div>`
           : `<p class="help">No accounts connected yet. Connect one in Settings.</p>`}
         <div class="row" style="margin-top:auto;padding-top:8px;border-top:1px solid var(--line)">
-          ${c.status === "done" ? `<a class="btn" href="${m}${esc(c.file)}?download=1">${ic("down")}Download</a>` : ""}
+          ${c.status === "done" ? `<a class="btn" href="${m}${esc(c.file)}?download=1" download="${esc(safeDlName(c.title || c.hook || c.id))}">${ic("down")}Download</a>` : ""}
           <button class="btn" data-act="copy" data-j="${j.id}" data-c="${esc(c.id)}">${ic("copy")}Copy post text</button></div>
       </div></div>`;
   } else if (D.sig !== sig) $("#stage").innerHTML = stage;
