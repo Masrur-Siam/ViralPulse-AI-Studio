@@ -734,8 +734,56 @@ def _run_job(job):
         job["ai"] = {"model": model, "tokens": tokens, "note": "", "log": notes[-5:]}
         job["done_blocks"] = bi + 1       # a restart from here on carries on with the next part
         save(job)
-    if not job["clips"]:
-        # Fallback 1: visual screen movement & motion cluster analysis for silent/speechless videos
+    # Check if more clips are needed to fulfill the requested clip count
+    needed = int(o["max_clips"]) - len(job["clips"])
+    if needed > 0:
+        # Cascade 1: Global Audience Retention Heatmap & Soundtrack Energy across entire video
+        try:
+            _set(job, stage="Selecting clips from retention heatmap & soundtrack energy")
+            total_dur = float(job.get("duration") or (len(db) if hasattr(db, "__len__") else 0) or span / 16000)
+            extra_found = brain.fallback_by_loudness(
+                db, words, needed, int(o["max_len"]), total_dur,
+                heatmap=job.get("heatmap"), min_len=int(o["min_len"]), existing=job["clips"]
+            )
+            for c in extra_found:
+                clip_layout = o.get("layout", "auto")
+                if clip_layout in ("auto", None):
+                    clip_layout = c.get("recommended_layout") or ("crop" if c.get("topic") in ("podcast", "education", "reaction") else "zoom" if c.get("topic") == "gaming" else "blur")
+
+                clip_style = o.get("style", "auto")
+                if clip_style in ("auto", None):
+                    clip_style = c.get("recommended_style") or ("clean" if c.get("topic") in ("podcast", "tech", "education") else "bounce" if c.get("topic") in ("gaming", "comedy") else "hype")
+
+                t_start = c["start"]
+                try:
+                    c_dur = c["end"] - c["start"]
+                    if c_dur > 3.0 and hasattr(db, "__len__") and len(db) > 0:
+                        s_lo = max(0, int(c["start"]))
+                        s_hi = min(len(db), int(c["end"] - 3))
+                        if s_hi > s_lo:
+                            vals = [float(db[k]) for k in range(s_lo, s_hi)]
+                            if vals:
+                                t_start = float(s_lo + vals.index(max(vals)))
+                except Exception:
+                    t_start = float(c["start"])
+
+                c.update(id=f"clip{len(job['clips']) + 1:02d}", start=round(c["start"], 2),
+                         end=round(c["end"], 2),
+                         teaser_hook=bool(o.get("teaser_hook", True)),
+                         teaser_start=round(t_start, 2),
+                         style=clip_style, layout=clip_layout,
+                         topic=c.get("topic", "other"),
+                         anti_copyright=bool(o.get("anti_copyright", False)), status="queued", version=0)
+                job["clips"].append(c)
+                futures.append((renders.submit(ctx.bind(make), c, list(words)), c))
+            save(job)
+        except Exception as e:
+            traceback.print_exc()
+            notes.append(f"Engagement fallback failed: {safe.friendly(e, 100)}")
+
+    needed = int(o["max_clips"]) - len(job["clips"])
+    if needed > 0:
+        # Cascade 2: visual screen movement & motion cluster analysis for silent/speechless moments
         try:
             _set(job, stage="Analyzing visual motion and screen movement")
             vid_path = None
@@ -746,10 +794,11 @@ def _run_job(job):
             else:
                 vid_path = media.download(src["url"], d, int(o["quality"]))
 
-            motion_segs = media.find_motion_segments(vid_path, job["duration"], int(o["min_len"]), int(o["max_len"]), int(o["max_clips"]))
-            if motion_segs:
+            motion_segs = media.find_motion_segments(vid_path, job["duration"], int(o["min_len"]), int(o["max_len"]), needed * 2)
+            valid_motion = [m for m in motion_segs if not any(not (m["end"] <= c["start"] or m["start"] >= c["end"]) for c in job["clips"])]
+            if valid_motion:
                 _set(job, stage="Scoring action moments")
-                captioned, ai_res = brain.caption_visual_clips(motion_segs, job["title"], job["uploader"], o.get("prompt", ""))
+                captioned, ai_res = brain.caption_visual_clips(valid_motion[:needed], job["title"], job["uploader"], o.get("prompt", ""))
                 tokens += ai_res.get("tokens", 0)
                 model = ai_res.get("model") or model
                 job["source_path"] = str(vid_path)
@@ -778,8 +827,9 @@ def _run_job(job):
             traceback.print_exc()
             notes.append(f"Visual motion analysis failed: {safe.friendly(e, 100)}")
 
-    # Fallback 2: Guaranteed segment slicing so the user always has clips to edit on timeline
-    if not job["clips"]:
+    needed = int(o["max_clips"]) - len(job["clips"])
+    # Cascade 3: Guaranteed segment slicing so all requested clips are always delivered
+    if needed > 0:
         try:
             total_dur = float(job.get("duration") or 0)
             if total_dur <= 0:
@@ -791,28 +841,29 @@ def _run_job(job):
             end_limit = float(o.get("range_end") or total_dur)
             while curr + min(5.0, clip_dur) <= end_limit and len(job["clips"]) < max_c:
                 c_end = min(end_limit, curr + clip_dur)
-                idx = len(job["clips"]) + 1
-                c = {
-                    "id": f"clip{idx:02d}",
-                    "start": round(curr, 2),
-                    "end": round(c_end, 2),
-                    "score": 85,
-                    "title": f"{(job.get('title') or 'Highlight')[:40]} Part {idx}",
-                    "hook": f"Watch this part #{idx}",
-                    "description": f"Highlight moment from {job.get('title') or 'video'}.",
-                    "hashtags": ["#viral", "#shorts", "#trending", "#fyp"],
-                    "reason": "Highlight segment (ready for manual timeline editing)",
-                    "teaser_hook": bool(o.get("teaser_hook", True)),
-                    "teaser_start": round(curr, 2),
-                    "style": o.get("style") if o.get("style") != "auto" else "hype",
-                    "layout": o.get("layout") if o.get("layout") != "auto" else "blur",
-                    "topic": "highlight",
-                    "anti_copyright": bool(o.get("anti_copyright", False)),
-                    "status": "queued",
-                    "version": 0
-                }
-                job["clips"].append(c)
-                futures.append((renders.submit(ctx.bind(make), c, list(words)), c))
+                if not any(not (c_end <= c["start"] or curr >= c["end"]) for c in job["clips"]):
+                    idx = len(job["clips"]) + 1
+                    c = {
+                        "id": f"clip{idx:02d}",
+                        "start": round(curr, 2),
+                        "end": round(c_end, 2),
+                        "score": 85,
+                        "title": f"{(job.get('title') or 'Highlight')[:40]} Part {idx}",
+                        "hook": f"Watch this part #{idx}",
+                        "description": f"Highlight moment from {job.get('title') or 'video'}.",
+                        "hashtags": ["#viral", "#shorts", "#trending", "#fyp"],
+                        "reason": "Highlight segment (audience retention & soundtrack peak)",
+                        "teaser_hook": bool(o.get("teaser_hook", True)),
+                        "teaser_start": round(curr, 2),
+                        "style": o.get("style") if o.get("style") != "auto" else "hype",
+                        "layout": o.get("layout") if o.get("layout") != "auto" else "blur",
+                        "topic": "highlight",
+                        "anti_copyright": bool(o.get("anti_copyright", False)),
+                        "status": "queued",
+                        "version": 0
+                    }
+                    job["clips"].append(c)
+                    futures.append((renders.submit(ctx.bind(make), c, list(words)), c))
                 curr += step
             save(job)
         except Exception as e:
@@ -830,8 +881,13 @@ def _run_job(job):
     fetch.shutdown(wait=False)
     del audio
     clips = job["clips"]
-    job["ai"] = {"model": model, "tokens": tokens, "log": notes[-5:],
-                 "note": "The AI was unavailable, so clips were picked by loudness only." if clips and not model else ""}
+    ai_note = ""
+    if clips and not model:
+        if job.get("heatmap"):
+            ai_note = "Clips selected based on audience retention heatmap & soundtrack energy."
+        else:
+            ai_note = "Clips selected based on soundtrack energy & loudness peaks."
+    job["ai"] = {"model": model, "tokens": tokens, "log": notes[-5:], "note": ai_note}
     stage = "Done" if clips else "Done, but nothing clip-worthy was found"
     _set(job, status="done", stage=stage, progress=1.0, took=round(time.time() - t0))
     try:
