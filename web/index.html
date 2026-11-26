@@ -2044,7 +2044,7 @@ async function drawSettings() {
             </div>
             <div class="sub" style="font-size:13px;margin-top:2px">
               ${k.has_key ? `Active Provider: <b>${esc(k.label)}</b> · Key in use: <code>${esc(k.key_masked || "••••••••" + k.key_hint)}</code> · Model: <code>${esc(k.models[0] || "")}</code>`
-                          : "No API key is configured. Please enter your API key below and click 'Save and test' to enable video generation."}
+                          : "No API key is configured. Please enter your API key below and click 'Save API Key' to enable video generation."}
             </div>
           </div>
         </div>
@@ -2076,9 +2076,8 @@ async function drawSettings() {
         </div>
 
         <div class="row" style="margin-top:22px;gap:10px">
-          <button class="btn primary" data-act="aisave">${ic("check")}Save and test</button>
+          <button class="btn primary" data-act="aisave">${ic("check")}Save API Key</button>
           ${k.has_key ? `<button class="btn danger-outline" data-act="wipeaikey">${ic("trash")}Permanently Remove Key</button>` : ""}
-          ${k.ready ? `<button class="btn" data-act="aitest">${ic("bolt")}Test again</button>` : ""}
         </div>
       </section>`;
       aiHints();
@@ -2324,16 +2323,15 @@ document.addEventListener("click", async e => {
       } finally { b.disabled = false; }
       return;
     }
-    if (a === "aisave" || a === "aitest") {
+    if (a === "aisave") {
       b.disabled = true;
       try {
-        if (a === "aisave") await send("/api/ai", {provider: $("#ai_provider").value, models: $("#ai_model").value, base_url: $("#ai_base").value, key: $("#ai_key").value}, "PUT");
-        let ok = null, why = "";
-        try { ok = await send("/api/ai/test"); } catch (err) { why = err.message; }
+        await send("/api/ai", {provider: $("#ai_provider").value, models: $("#ai_model").value, base_url: $("#ai_base").value, key: $("#ai_key").value}, "PUT");
         S.status = await api("/api/status"); drawShell();
         if (S.view === "ai") await drawAI(); else await drawSettings();
-        if (ok) toast(`Saved. ${ok.model} answered, so the AI is ready.`, "ok");
-        else toast(`Saved, but the test failed. ${why}`, "bad");
+        toast("API Key and settings saved successfully!", "ok");
+      } catch (err) {
+        toast("Could not save settings: " + err.message, "bad");
       } finally { b.disabled = false; }
       return;
     }

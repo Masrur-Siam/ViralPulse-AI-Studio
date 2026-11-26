@@ -1431,6 +1431,7 @@ def ai_put(request: Request, body: dict = Body(...)):
                       None if k is None or (isinstance(k, str) and not k.strip() and not body.get("remove_key")) else str(k))
     except (ValueError, TypeError) as e:
         raise HTTPException(400, str(e))
+    ai.clear_problem()
     usage.forget_all()
     ctx.bump()
     return out
