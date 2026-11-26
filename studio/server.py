@@ -1186,6 +1186,8 @@ def media_file(jid: str, name: str, download: int = 0):
         raise HTTPException(404)
     job = _job_or_404(jid)
     f = Path(job["dir"]) / "clips" / name
+    if not f.is_file() and name == "source.mp4":
+        f = Path(job["dir"]) / "source.mp4"
     if not f.is_file():
         raise HTTPException(404)
     dl_name = None

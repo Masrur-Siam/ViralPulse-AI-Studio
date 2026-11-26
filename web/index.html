@@ -2232,7 +2232,10 @@ function drawClipDlg(full) {
     const r75 = (sStart + cDur * 0.75).toFixed(1) + "s";
     const r100 = sEnd.toFixed(1) + "s";
 
-    dlg.innerHTML = `<div class="editor"><div class="stage" id="stage">${stage}</div>
+    dlg.innerHTML = `<div class="editor"><div class="stage" id="stage" style="position:relative;overflow:hidden;">${stage}
+      <div id="nle_flash_overlay" style="position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:20;transition:opacity 0.15s ease-out;"></div>
+      <div id="nle_status_pill" style="position:absolute;top:12px;left:12px;z-index:25;background:rgba(15,23,42,0.85);color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.2);display:none;pointer-events:none;align-items:center;gap:5px;"></div>
+    </div>
       <div class="panel">
         <div class="job-head" style="margin:0"><div>
           <span class="badge ${scoreCls(c.score)}" style="position:static">${c.judges ? "Words " + c.judges.words + (c.judges.reaction ? " · Reaction " + c.judges.reaction : "") : c.score ? "Score " + c.score : "Clipped by hand"}</span>
@@ -2286,8 +2289,11 @@ function drawClipDlg(full) {
 
           <!-- Quick Action Controls & Manual Input -->
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
-            <button type="button" class="btn sm primary" id="btn_preview_hook" style="height:32px;display:flex;align-items:center;gap:5px;">
-              <span>▶</span> <b>Play Hook (3s)</b>
+            <button type="button" class="btn sm primary" id="btn_live_nle" style="height:32px;background:#ff5c00;border-color:#ff5c00;color:#fff;display:inline-flex;align-items:center;gap:5px;font-weight:700;" title="Live NLE playback: Plays selected hook, flashes transition, then plays main clip!">
+              <span>⚡</span> <b>Live Play (Hook + Cut)</b>
+            </button>
+            <button type="button" class="btn sm" id="btn_preview_hook" style="height:32px;display:flex;align-items:center;gap:5px;">
+              <span>▶</span> <b>Hook Only (3s)</b>
             </button>
             <button type="button" class="btn sm" id="btn_auto_hook" style="height:32px;display:flex;align-items:center;gap:4px;" title="Reset to auto-detected peak excitement">
               <span>⚡</span> Auto Peak
@@ -2419,19 +2425,93 @@ function setupTimelineEvents(c) {
     }
   });
 
+  let nleTimer = null;
+  const showPill = (txt, col = "#ff5c00") => {
+    const pill = $("#nle_status_pill");
+    if (!pill) return;
+    pill.style.display = "inline-flex";
+    pill.style.borderColor = col;
+    pill.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};box-shadow:0 0 6px ${col};"></span> ${esc(txt)}`;
+  };
+  const hidePill = () => {
+    const pill = $("#nle_status_pill");
+    if (pill) pill.style.display = "none";
+  };
+  const flashScreen = () => {
+    const fl = $("#nle_flash_overlay");
+    if (!fl) return;
+    fl.style.opacity = "0.95";
+    setTimeout(() => { fl.style.opacity = "0"; }, 250);
+  };
+  const stopLiveNLE = () => {
+    if (nleTimer) { clearInterval(nleTimer); nleTimer = null; }
+    hidePill();
+  };
+
+  $("#btn_live_nle")?.addEventListener("click", () => {
+    if (!v) return;
+    stopLiveNLE();
+    const { s } = getBounds();
+    const t = Number(inp.value);
+    const on = $("#c_teaser_hook")?.checked;
+
+    if (on) {
+      const relHook = Math.max(0, t - s);
+      const hookSeek = (c.teaser_hook ? 2.65 : 0) + relHook;
+      v.currentTime = Math.max(0, Math.min(v.duration || 9999, hookSeek));
+      showPill(`⚡ VIRAL HOOK (${t.toFixed(1)}s - ${(t + 3.0).toFixed(1)}s)`, "#ff8a3d");
+      v.play();
+      toast(`Playing Live: Hook (${t.toFixed(1)}s) ➔ Flash ➔ Main Clip`, "ok");
+
+      let startMs = performance.now();
+      let flashed = false;
+      nleTimer = setInterval(() => {
+        if (v.paused) { stopLiveNLE(); return; }
+        const elapsed = (performance.now() - startMs) / 1000;
+        if (elapsed >= 2.65 && !flashed) {
+          flashed = true;
+          flashScreen();
+          showPill("⚡ WHITE FLASH TRANSITION", "#ffffff");
+        }
+        if (elapsed >= 3.0) {
+          clearInterval(nleTimer);
+          nleTimer = null;
+          const mainSeek = c.teaser_hook ? 2.65 : 0;
+          v.currentTime = mainSeek;
+          showPill("▶ MAIN CLIP", "#10b981");
+          v.play();
+          setTimeout(hidePill, 2500);
+        }
+      }, 30);
+    } else {
+      const mainSeek = c.teaser_hook ? 2.65 : 0;
+      v.currentTime = mainSeek;
+      showPill("▶ MAIN CLIP", "#10b981");
+      v.play();
+      toast("Playing main clip without hook", "ok");
+      setTimeout(hidePill, 2500);
+    }
+  });
+
+  v?.addEventListener("pause", stopLiveNLE);
+  v?.addEventListener("ended", stopLiveNLE);
+
   let previewTimer = null;
   $("#btn_preview_hook")?.addEventListener("click", () => {
     if (!v) return;
+    stopLiveNLE();
     const { s } = getBounds();
     const t = Number(inp.value);
     const rel = Math.max(0, t - s);
     const targetTime = (c.teaser_hook ? 2.65 : 0) + rel;
     v.currentTime = Math.max(0, Math.min(v.duration || 9999, targetTime));
+    showPill(`⚡ 3s HOOK (${t.toFixed(1)}s - ${(t + 3.0).toFixed(1)}s)`, "#ff8a3d");
     v.play();
     toast(`Previewing 3s hook (${t.toFixed(1)}s - ${(t + 3.0).toFixed(1)}s)…`, "ok");
     if (previewTimer) clearTimeout(previewTimer);
     previewTimer = setTimeout(() => {
       v.pause();
+      hidePill();
     }, 3000);
   });
 

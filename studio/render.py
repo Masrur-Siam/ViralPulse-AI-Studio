@@ -291,14 +291,14 @@ def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, la
     if anti_copyright:
         fc += f";[v]scale=iw*1.02:ih*1.02,crop={W}:{H},eq=contrast=1.03:brightness=0.01:saturation=1.05[v_safe]"
         out_v = "[v_safe]"
-        audio_af = "asetrate=48000*1.025,aresample=48000:async=1:first_pts=0"
+        audio_af = "volume=1.01,equalizer=f=950:t=q:w=1.2:g=0.6,aresample=async=1:first_pts=0"
         meta_args = ["-map_metadata", "-1"]
     else:
         out_v = "[v]"
         audio_af = "aresample=async=1:first_pts=0"
         meta_args = []
     dur = max(0.1, e - s)
-    inputs = ["-ss", f"{s:.2f}", "-avoid_negative_ts", "make_zero", "-t", f"{dur:.2f}", "-i", str(src)]
+    inputs = ["-ss", f"{s:.2f}", "-avoid_negative_ts", "make_zero", "-i", str(src)]
     if not has_audio:
         inputs += ["-f", "lavfi", "-t", f"{dur:.2f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
         audio_map = ["-map", "1:a"]
@@ -306,6 +306,7 @@ def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, la
         audio_map = ["-map", "0:a:0"]
 
     base = ["ffmpeg", "-y", "-v", "error"] + inputs + [
+            "-t", f"{dur:.2f}",
             "-filter_complex", fc, "-map", out_v] + audio_map + [
             "-af", audio_af, "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
             "-avoid_negative_ts", "make_zero",
