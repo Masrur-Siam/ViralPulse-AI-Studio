@@ -621,12 +621,29 @@ dialog::backdrop{background:rgba(14,12,11,.65);animation:fadein .16s ease}
 .dlg{padding:24px;width:450px;max-width:100%;display:flex;flex-direction:column;gap:14px}
 .dlg h2{font-size:18px;font-weight:600;color:var(--brand-ink)}
 .dlg-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
-.editor{display:grid;grid-template-columns:minmax(240px,340px) minmax(300px,450px);max-height:calc(100vh - 48px)}
-.editor .stage{background:#0B0F19;display:grid;place-items:center;position:relative;min-height:320px}
+.editor{display:grid;grid-template-columns:minmax(280px,380px) minmax(460px,640px);max-height:calc(100vh - 48px)}
+.editor .stage{background:#0B0F19;display:grid;place-items:center;position:relative;min-height:360px}
 .editor video,.editor .stage img{width:100%;max-height:calc(100vh - 48px);aspect-ratio:9/16;object-fit:contain;display:block}
 .editor .panel{padding:22px;overflow:auto;display:flex;flex-direction:column;gap:14px;background:var(--card-bg)}
 .editor h3{font-size:13px;font-weight:600;color:var(--dim);margin-top:6px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* Professional NLE Timeline */
+.nle-timeline-wrap{background:#0a0d14;border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:12px 14px;margin:8px 0;display:flex;flex-direction:column;gap:8px;user-select:none}
+.nle-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.nle-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.4px;background:rgba(255,92,0,0.15);color:#ff7728;border:1px solid rgba(255,92,0,0.35)}
+.nle-badge.off{background:rgba(255,255,255,0.05);color:var(--dim,#888);border-color:rgba(255,255,255,0.1)}
+.nle-ruler{position:relative;height:16px;width:100%;font-size:10px;font-family:monospace;color:#8da2ba;opacity:0.8}
+.nle-ruler span{position:absolute;transform:translateX(-50%);top:0}
+.nle-ruler span:first-child{transform:none;left:0}
+.nle-ruler span:last-child{transform:none;right:0}
+.nle-track{position:relative;width:100%;height:50px;background:#06080c;border-radius:8px;border:1px solid rgba(255,255,255,0.15);cursor:pointer;overflow:hidden;touch-action:none}
+.nle-waves{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;gap:2px;padding:0 4px;opacity:0.35;pointer-events:none}
+.nle-wave-bar{flex:1;background:linear-gradient(180deg,#38bdf8,#0284c7);border-radius:1px;min-width:2px}
+.nle-hook-box{position:absolute;top:2px;bottom:2px;background:linear-gradient(135deg,rgba(255,92,0,0.92),rgba(239,68,68,0.92));border-radius:6px;border:1px solid #fef08a;box-shadow:0 0 16px rgba(255,92,0,0.6);display:flex;align-items:center;justify-content:space-between;color:#fff;font-size:11px;font-weight:800;letter-spacing:0.3px;cursor:grab;z-index:10;transition:opacity .15s ease}
+.nle-hook-box:active{cursor:grabbing}
+.nle-grip{width:14px;height:100%;display:flex;align-items:center;justify-content:center;opacity:0.75;font-size:9px;font-weight:bold}
+.nle-playhead{position:absolute;top:0;bottom:0;width:2px;background:#ff2a55;pointer-events:none;z-index:20;box-shadow:0 0 6px #ff2a55}
+.nle-playhead::before{content:"";position:absolute;top:0;left:-4px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #ff2a55}
 #toasts{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:50}
 .toast{background:var(--card-bg);color:var(--text);border:1px solid var(--line-2);border-radius:var(--r);padding:12px 16px;max-width:380px;animation:rise .2s ease;display:flex;gap:10px;align-items:center;font-weight:500}
 .toast::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--brand);flex:none}
@@ -2204,6 +2221,17 @@ function drawClipDlg(full) {
     const hookLeftPct = Math.max(0, Math.min(100, ((tStart - sStart) / cDur * 100))).toFixed(1);
     const hookWidthPct = Math.min(100, Math.max(5, (3.0 / cDur * 100))).toFixed(1);
 
+    const waveBars = Array.from({length: 46}, (_, i) => {
+      const h = Math.max(16, Math.min(94, Math.round(Math.abs(Math.sin(i * 0.42) * 48 + Math.cos(i * 0.88) * 32 + 30))));
+      return `<span class="nle-wave-bar" style="height:${h}%"></span>`;
+    }).join("");
+
+    const r0 = sStart.toFixed(1) + "s";
+    const r25 = (sStart + cDur * 0.25).toFixed(1) + "s";
+    const r50 = (sStart + cDur * 0.50).toFixed(1) + "s";
+    const r75 = (sStart + cDur * 0.75).toFixed(1) + "s";
+    const r100 = sEnd.toFixed(1) + "s";
+
     dlg.innerHTML = `<div class="editor"><div class="stage" id="stage">${stage}</div>
       <div class="panel">
         <div class="job-head" style="margin:0"><div>
@@ -2217,35 +2245,63 @@ function drawClipDlg(full) {
         <div class="two"><label class="f">Start (seconds)<input data-f="start" id="c_start" type="number" step="0.5" value="${c.start}"></label>
           <label class="f">End (seconds)<input data-f="end" id="c_end" type="number" step="0.5" value="${c.end}"></label></div>
 
-        <!-- 3-Second Teaser Hook & Interactive Timeline -->
-        <div style="background:var(--bg3,#161922);border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <label class="ck" style="cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;">
-              <input type="checkbox" data-f="teaser_hook" id="c_teaser_hook" ${c.teaser_hook !== false ? "checked" : ""}>
-              <span>3-Second Teaser Hook (Prepend + Transition)</span>
-            </label>
-            <span id="hook_time_lbl" style="font-size:11px;font-weight:bold;color:var(--pri,#ff5c00);">${tStart.toFixed(1)}s - ${(tStart + 3.0).toFixed(1)}s</span>
-          </div>
-
-          <!-- Visual Timeline Bar -->
-          <div id="hook_timeline_bar" style="position:relative;width:100%;height:34px;background:#0d0f14;border-radius:6px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;overflow:hidden;" title="Click anywhere on the timeline to place the 3-second hook">
-            <div style="position:absolute;left:0;top:0;right:0;bottom:0;display:flex;justify-content:space-between;padding:0 6px;align-items:center;pointer-events:none;opacity:0.4;font-size:10px;font-family:monospace;">
-              <span>${c.start}s</span>
-              <span>Timeline: Click or Drag Hook</span>
-              <span>${c.end}s</span>
+        <!-- Professional NLE Timeline & 3-Second Teaser Hook Editor -->
+        <div class="nle-timeline-wrap">
+          <div class="nle-head">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span id="nle_status_badge" class="${c.teaser_hook !== false ? 'nle-badge' : 'nle-badge off'}">
+                ${c.teaser_hook !== false ? '⚡ 3s Viral Teaser Active' : 'Hook Disabled'}
+              </span>
+              <label class="ck" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;">
+                <input type="checkbox" data-f="teaser_hook" id="c_teaser_hook" ${c.teaser_hook !== false ? "checked" : ""}>
+                <span>Prepend Hook + Transition</span>
+              </label>
             </div>
-            <div id="hook_timeline_box" style="position:absolute;top:2px;bottom:2px;left:${hookLeftPct}%;width:${hookWidthPct}%;background:linear-gradient(135deg, #f59e0b, #ef4444);border-radius:4px;border:1px solid #fef08a;box-shadow:0 0 10px rgba(239,68,68,0.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:bold;user-select:none;pointer-events:none;transition:left 0.08s ease;">
-              🎯 3s Hook
+            <div style="font-family:monospace;font-size:11px;font-weight:700;color:#ff8a3d;background:rgba(255,92,0,0.12);padding:3px 8px;border-radius:6px;border:1px solid rgba(255,92,0,0.3);">
+              <span id="hook_time_lbl">${tStart.toFixed(1)}s - ${(tStart + 3.0).toFixed(1)}s</span> (3.0s)
             </div>
           </div>
 
-          <!-- Hook Time Manual Input and Action Buttons -->
-          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-            <label class="f" style="flex:1;margin:0;"><span style="font-size:11px;opacity:0.8;">Hook Start Time (sec)</span>
-              <input data-f="teaser_start" id="c_teaser_start" type="number" step="0.1" min="${c.start}" max="${Math.max(c.start, c.end - 3)}" value="${tStart.toFixed(1)}">
-            </label>
-            <button type="button" class="btn sm" id="btn_preview_hook" style="height:32px;align-self:flex-end;">▶ Preview Hook</button>
-            <button type="button" class="btn sm ghost" id="btn_auto_hook" style="height:32px;align-self:flex-end;" title="Reset to auto-detected peak moment">⚡ Auto Peak</button>
+          <!-- Ruler -->
+          <div class="nle-ruler">
+            <span style="left:0%">${r0}</span>
+            <span style="left:25%">${r25}</span>
+            <span style="left:50%">${r50}</span>
+            <span style="left:75%">${r75}</span>
+            <span style="right:0%">${r100}</span>
+          </div>
+
+          <!-- Timeline Track -->
+          <div id="hook_timeline_bar" class="nle-track" title="Click anywhere or drag to place the 3-second hook window">
+            <div class="nle-waves">${waveBars}</div>
+            <div id="hook_timeline_box" class="nle-hook-box" style="left:${hookLeftPct}%;width:${hookWidthPct}%;opacity:${c.teaser_hook !== false ? '1' : '0.3'};">
+              <span class="nle-grip" title="Drag hook">||</span>
+              <span style="display:flex;align-items:center;gap:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                <span>⚡</span> 3s VIRAL HOOK
+              </span>
+              <span class="nle-grip" title="Drag hook">||</span>
+            </div>
+            <div id="nle_playhead" class="nle-playhead" style="left:0%;"></div>
+          </div>
+
+          <!-- Quick Action Controls & Manual Input -->
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
+            <button type="button" class="btn sm primary" id="btn_preview_hook" style="height:32px;display:flex;align-items:center;gap:5px;">
+              <span>▶</span> <b>Play Hook (3s)</b>
+            </button>
+            <button type="button" class="btn sm" id="btn_auto_hook" style="height:32px;display:flex;align-items:center;gap:4px;" title="Reset to auto-detected peak excitement">
+              <span>⚡</span> Auto Peak
+            </button>
+            <button type="button" class="btn sm ghost" id="btn_snap_start" style="height:32px;padding:0 8px;" title="Jump Hook to Clip Start">
+              ⏮ Start
+            </button>
+            <button type="button" class="btn sm ghost" id="btn_snap_end" style="height:32px;padding:0 8px;" title="Jump Hook to Clip End">
+              ⏭ End
+            </button>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+              <span style="font-size:11px;opacity:0.75;">Hook Sec:</span>
+              <input data-f="teaser_start" id="c_teaser_start" type="number" step="0.1" min="${sStart}" max="${Math.max(sStart, sEnd - 3)}" value="${tStart.toFixed(1)}" style="width:72px;height:30px;padding:2px 6px;font-size:12px;font-weight:bold;text-align:center;">
+            </div>
           </div>
         </div>
 
@@ -2275,9 +2331,18 @@ function drawClipDlg(full) {
 
 function setupTimelineEvents(c) {
   const bar = $("#hook_timeline_bar"), inp = $("#c_teaser_start"), box = $("#hook_timeline_box"), lbl = $("#hook_time_lbl");
+  const playhead = $("#nle_playhead");
+  const v = $("#stage video");
   if (!bar || !inp) return;
-  const update = sec => {
-    const s = Number($("#c_start")?.value ?? c.start), e = Number($("#c_end")?.value ?? c.end), dur = Math.max(0.1, e - s);
+
+  const getBounds = () => {
+    const s = Number($("#c_start")?.value ?? c.start);
+    const e = Number($("#c_end")?.value ?? c.end);
+    return { s, e, dur: Math.max(0.1, e - s) };
+  };
+
+  const update = (sec, syncVideo = true) => {
+    const { s, e, dur } = getBounds();
     const clamped = Math.min(Math.max(s, sec), Math.max(s, e - 3.0));
     inp.value = clamped.toFixed(1);
     if (box) {
@@ -2285,36 +2350,93 @@ function setupTimelineEvents(c) {
       box.style.width = Math.min(100, Math.max(5, (3.0 / dur * 100))).toFixed(1) + "%";
     }
     if (lbl) lbl.textContent = `${clamped.toFixed(1)}s - ${(clamped + 3.0).toFixed(1)}s`;
+
+    if (syncVideo && v && isFinite(v.duration) && v.duration > 0) {
+      const relTime = clamped - s;
+      if (isFinite(relTime)) {
+        v.currentTime = Math.max(0, Math.min(v.duration, relTime));
+      }
+    }
   };
+
+  if (v) {
+    v.addEventListener("timeupdate", () => {
+      if (!playhead || !isFinite(v.duration) || v.duration <= 0) return;
+      const pct = Math.max(0, Math.min(100, (v.currentTime / v.duration) * 100));
+      playhead.style.left = pct.toFixed(1) + "%";
+    });
+  }
+
   let dragging = false;
-  bar.addEventListener("mousedown", e => {
-    dragging = true;
-    const rect = bar.getBoundingClientRect(), pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const s = Number($("#c_start")?.value ?? c.start), e_ = Number($("#c_end")?.value ?? c.end);
-    update(s + pct * (e_ - s));
-  });
-  window.addEventListener("mousemove", e => {
+  const onPointerMove = e => {
     if (!dragging) return;
-    const rect = bar.getBoundingClientRect(), pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const s = Number($("#c_start")?.value ?? c.start), e_ = Number($("#c_end")?.value ?? c.end);
-    update(s + pct * (e_ - s));
+    const rect = bar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const { s, e: e_ } = getBounds();
+    update(s + pct * (e_ - s) - 1.5);
+  };
+
+  bar.addEventListener("pointerdown", e => {
+    dragging = true;
+    try { bar.setPointerCapture(e.pointerId); } catch (_) {}
+    onPointerMove(e);
   });
-  window.addEventListener("mouseup", () => { dragging = false; });
+  bar.addEventListener("pointermove", onPointerMove);
+  const endDrag = e => {
+    if (dragging) {
+      dragging = false;
+      try { bar.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+  };
+  bar.addEventListener("pointerup", endDrag);
+  bar.addEventListener("pointercancel", endDrag);
+
   inp.addEventListener("input", () => update(Number(inp.value)));
 
-  $("#btn_preview_hook")?.addEventListener("click", () => {
-    const v = $("#stage video");
-    if (!v) return;
-    const s = Number($("#c_start")?.value ?? c.start);
-    const t = Number(inp.value);
-    v.currentTime = c.teaser_hook ? 0 : Math.max(0, t - s);
-    v.play();
+  const hookCk = $("#c_teaser_hook");
+  hookCk?.addEventListener("change", () => {
+    const on = hookCk.checked;
+    if (box) box.style.opacity = on ? "1" : "0.3";
+    const badge = $("#nle_status_badge");
+    if (badge) {
+      badge.className = on ? "nle-badge" : "nle-badge off";
+      badge.textContent = on ? "⚡ 3s Viral Teaser Active" : "Hook Disabled";
+    }
   });
+
+  let previewTimer = null;
+  $("#btn_preview_hook")?.addEventListener("click", () => {
+    if (!v) return;
+    const { s } = getBounds();
+    const t = Number(inp.value);
+    const rel = Math.max(0, t - s);
+    v.currentTime = c.teaser_hook ? 0 : rel;
+    v.play();
+    toast("Previewing 3-second hook…", "ok");
+    if (previewTimer) clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      v.pause();
+    }, 3000);
+  });
+
   $("#btn_auto_hook")?.addEventListener("click", () => {
     const origPeak = c.teaser_start != null ? c.teaser_start : c.start;
     update(Number(origPeak));
-    toast("Reset hook to peak moment", "ok");
+    toast("Reset hook to peak excitement moment", "ok");
   });
+
+  $("#btn_snap_start")?.addEventListener("click", () => {
+    const { s } = getBounds();
+    update(s);
+  });
+
+  $("#btn_snap_end")?.addEventListener("click", () => {
+    const { e } = getBounds();
+    update(Math.max(0, e - 3.0));
+  });
+
+  $("#c_start")?.addEventListener("input", () => update(Number(inp.value), false));
+  $("#c_end")?.addEventListener("input", () => update(Number(inp.value), false));
 }
 $("#clipdlg").addEventListener("close", () => { $("#clipdlg").innerHTML = ""; D.jid = null; });
 $("#clipdlg").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });

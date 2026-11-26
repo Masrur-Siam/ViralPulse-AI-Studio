@@ -341,11 +341,11 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             _encode_segment(work, src, "teaser", teaser_start, teaser_start + 3.0, layout, fg_h, teaser_ass, anti_copyright, has_audio)
             # 2. Render main clip
             _encode_segment(work, src, "main", start, end, layout, fg_h, ass, anti_copyright, has_audio)
-            # 3. Join with mandatory white flash transition between teaser hook and main clip
-            join_fc = "[0:v][1:v]xfade=transition=fadewhite:duration=0.3:offset=2.7[v];[0:a][1:a]acrossfade=d=0.3[a]"
+            # 3. Join with snappy viral white flash transition between teaser hook and main clip
+            join_fc = "[0:v][1:v]xfade=transition=fadewhite:duration=0.25:offset=2.75[v];[0:a][1:a]acrossfade=d=0.25[a]"
             join_cmd = ["ffmpeg", "-y", "-v", "error", "-i", "teaser.mp4", "-i", "main.mp4",
                         "-filter_complex", join_fc, "-map", "[v]", "-map", "[a]",
-                        "-c:v", "libx264", "-crf", "21", "-preset", "veryfast",
+                        "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
                         "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart",
                         f"{name}.mp4"]
             p = subprocess.run(join_cmd, cwd=work, capture_output=True, text=True,
