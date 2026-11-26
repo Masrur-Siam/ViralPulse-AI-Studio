@@ -292,11 +292,11 @@ def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, la
     if anti_copyright:
         fc += f";[v]scale=iw*1.02:ih*1.02,crop={W}:{H},eq=contrast=1.03:brightness=0.01:saturation=1.05[v_safe]"
         out_v = "[v_safe]"
-        audio_af = "volume=1.01,equalizer=f=950:t=q:w=1.2:g=0.6,aresample=async=1:first_pts=0,apad"
+        audio_af = "volume=1.01,equalizer=f=950:t=q:w=1.2:g=0.6,aresample=async=1:first_pts=0,aformat=channel_layouts=stereo:sample_rates=48000,apad"
         meta_args = ["-map_metadata", "-1"]
     else:
         out_v = "[v]"
-        audio_af = "aresample=async=1:first_pts=0,apad"
+        audio_af = "aresample=async=1:first_pts=0,aformat=channel_layouts=stereo:sample_rates=48000,apad"
         meta_args = []
     dur = max(0.1, e - s)
     inputs = ["-ss", f"{s:.2f}", "-avoid_negative_ts", "make_zero", "-i", str(src_path)]
@@ -309,7 +309,7 @@ def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, la
     base = ["ffmpeg", "-y", "-v", "error"] + inputs + [
             "-t", f"{dur:.2f}",
             "-filter_complex", fc, "-map", out_v] + audio_map + [
-            "-af", audio_af, "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
+            "-af", audio_af, "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
             "-avoid_negative_ts", "make_zero", "-shortest",
             "-movflags", "+faststart", *meta_args, "-threads", "0", "-pix_fmt"]
     encoders = []
@@ -329,6 +329,9 @@ def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, la
         if label == "qsv":
             _qsv_ok = False
     else:
+        if has_audio:
+            # Fallback: source audio track failed or was unreadable, retry with synthesized stereo audio
+            return _encode_segment(work, src, seg_name, s, e, layout, fg_h, ass_str, anti_copyright, has_audio=False)
         raise RuntimeError(f"Render failed: {err}")
 
 
@@ -350,12 +353,12 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             join_fc = (
                 "[0:v][1:v]xfade=transition=fadewhite:duration=0.35:offset=2.65[v];"
                 "[0:a][1:a]acrossfade=d=0.35:curve1=tri:curve2=tri[a0];"
-                "[a0]aresample=async=1:first_pts=0,apad[a]"
+                "[a0]aresample=async=1:first_pts=0,aformat=channel_layouts=stereo:sample_rates=48000,apad[a]"
             )
             join_cmd = ["ffmpeg", "-y", "-v", "error", "-i", "teaser.mp4", "-i", "main.mp4",
                         "-filter_complex", join_fc, "-map", "[v]", "-map", "[a]",
                         "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
-                        "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
+                        "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
                         "-avoid_negative_ts", "make_zero", "-shortest", "-movflags", "+faststart",
                         f"{name}.mp4"]
             p = subprocess.run(join_cmd, cwd=work, capture_output=True, text=True,
@@ -366,7 +369,10 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
                 else:
                     _encode_segment(work, src, name, start, end, layout, fg_h, ass, anti_copyright, has_audio)
         except Exception:
-            _encode_segment(work, src, name, start, end, layout, fg_h, ass, anti_copyright, has_audio)
+            if (work / "main.mp4").exists():
+                shutil.copyfile(work / "main.mp4", work / f"{name}.mp4")
+            else:
+                _encode_segment(work, src, name, start, end, layout, fg_h, ass, anti_copyright, has_audio)
     else:
         _encode_segment(work, src, name, start, end, layout, fg_h, ass, anti_copyright, has_audio)
 
