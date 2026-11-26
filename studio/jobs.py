@@ -108,7 +108,7 @@ _lock = threading.RLock()
 on_clip_ready: list = []   # callbacks (job, clip), run once when a clip first finishes
 
 DEFAULTS = {"max_clips": 6, "min_len": 15, "max_len": 60, "style": "bounce", "layout": "blur", "quality": 720,
-            "range_start": None, "range_end": None, "anti_copyright": False}
+            "range_start": None, "range_end": None, "anti_copyright": False, "teaser_hook": True}
 
 
 LIMITS = {"max_clips": (1, 20), "min_len": (5, 120), "max_len": (10, 180), "quality": (360, 1080)}
@@ -127,7 +127,7 @@ def clean_options(options) -> dict:
             v = v if v in render.STYLES else DEFAULTS["style"]
         elif k == "layout":
             v = v if v in render.LAYOUTS else DEFAULTS["layout"]
-        elif k == "anti_copyright":
+        elif k in ("anti_copyright", "teaser_hook"):
             v = bool(v)
         else:                                    # range_start, range_end: seconds into the video
             v = float(v)
@@ -364,6 +364,15 @@ def request_render(jid, cid, changes: dict):
             new[k] = str(changes[k])[:{"hook": 60, "title": 100, "description": 2000}.get(k, 20)]
     if "anti_copyright" in changes:
         new["anti_copyright"] = bool(changes["anti_copyright"])
+    if "teaser_hook" in changes:
+        new["teaser_hook"] = bool(changes["teaser_hook"])
+    if "teaser_start" in changes:
+        try:
+            ts = float(changes["teaser_start"])
+            if math.isfinite(ts):
+                new["teaser_start"] = round(ts, 2)
+        except Exception:
+            pass
     if new.get("style") not in render.STYLES:
         new["style"] = DEFAULTS["style"]
     if new.get("layout") not in render.LAYOUTS:
@@ -382,7 +391,10 @@ def render_one(job, clip, words):
         src = Path(clip["src"]) if clip.get("src") else Path(job["source_path"])
         if not clip.get("src"):
             clip["end"] = min(clip["end"], job["duration"])
+        t_start = clip.get("teaser_start", clip["start"])
         local = dict(clip, start=clip["start"] - off, end=clip["end"] - off,
+                     teaser_hook=bool(clip.get("teaser_hook", job.get("options", {}).get("teaser_hook", True))),
+                     teaser_start=round(t_start - off, 2),
                      hook=roman.to_roman(clip.get("hook") or ""),
                      anti_copyright=bool(clip.get("anti_copyright", job.get("options", {}).get("anti_copyright", False))))
         span = [round(clip["start"], 2), round(clip["end"], 2), "en2"]      # "en2": captions made always-English
@@ -402,7 +414,7 @@ def render_one(job, clip, words):
         near = [dict(w, s=w["s"] - off, e=w["e"] - off) for w in roman.words(raw)]
         out = render.render_clip(src, d / "clips", clip["id"], local, near, job["width"], job["height"])
         clip.update(out, status="done", version=clip.get("version", 0) + 1, error=None)
-        post = {k: clip[k] for k in ("title", "description", "hashtags", "hook", "start", "end", "score")}
+        post = {k: clip[k] for k in ("title", "description", "hashtags", "hook", "start", "end", "score", "teaser_hook", "teaser_start") if k in clip}
         (d / "clips" / f"{clip['id']}.json").write_text(json.dumps(post, indent=1), encoding="utf-8")
         if clip["version"] == 1:
             clip.setdefault("made_at", time.time())
@@ -694,8 +706,21 @@ def _run_job(job):
             if clip_style in ("auto", None):
                 clip_style = c.get("recommended_style") or ("clean" if c.get("topic") in ("podcast", "tech", "education") else "bounce" if c.get("topic") in ("gaming", "comedy") else "hype")
 
+            # Calculate default 3-second teaser hook start at peak loudness or action
+            t_start = c["start"]
+            c_dur = c["end"] - c["start"]
+            if c_dur > 3.0 and len(db) > 0:
+                s_lo = max(0, int(c["start"]))
+                s_hi = min(len(db), int(c["end"] - 3))
+                if s_hi > s_lo:
+                    peak_sec = s_lo + int(np.argmax(db[s_lo:s_hi]))
+                    t_start = float(peak_sec)
+
             c.update(id=f"clip{len(job['clips']) + 1:02d}", start=round(c["start"] + shift, 2),
-                     end=round(c["end"] + shift, 2), style=clip_style, layout=clip_layout,
+                     end=round(c["end"] + shift, 2),
+                     teaser_hook=bool(o.get("teaser_hook", True)),
+                     teaser_start=round(t_start + shift, 2),
+                     style=clip_style, layout=clip_layout,
                      topic=c.get("topic", "other"),
                      anti_copyright=bool(o.get("anti_copyright", False)), status="queued", version=0)
             job["clips"].append(c)
@@ -703,6 +728,49 @@ def _run_job(job):
         job["ai"] = {"model": model, "tokens": tokens, "note": "", "log": notes[-5:]}
         job["done_blocks"] = bi + 1       # a restart from here on carries on with the next part
         save(job)
+    if not job["clips"]:
+        # Fallback: visual screen movement & motion cluster analysis for silent/speechless videos
+        try:
+            _set(job, stage="Analyzing visual motion and screen movement")
+            vid_path = None
+            if src["type"] != "url":
+                vid_path = Path(src["path"])
+            elif video:
+                vid_path = video.result()
+            else:
+                vid_path = media.download(src["url"], d, int(o["quality"]))
+
+            motion_segs = media.find_motion_segments(vid_path, job["duration"], int(o["min_len"]), int(o["max_len"]), int(o["max_clips"]))
+            if motion_segs:
+                _set(job, stage="Scoring action moments")
+                captioned, ai_res = brain.caption_visual_clips(motion_segs, job["title"], job["uploader"], o.get("prompt", ""))
+                tokens += ai_res.get("tokens", 0)
+                model = ai_res.get("model") or model
+                job["source_path"] = str(vid_path)
+                for c in captioned:
+                    clip_layout = o.get("layout", "auto")
+                    if clip_layout in ("auto", None):
+                        clip_layout = "zoom"
+                    clip_style = o.get("style", "auto")
+                    if clip_style in ("auto", None):
+                        clip_style = "hype"
+
+                    c.update(id=f"clip{len(job['clips']) + 1:02d}",
+                             start=round(c["start"], 2),
+                             end=round(c["end"], 2),
+                             teaser_hook=bool(o.get("teaser_hook", True)),
+                             teaser_start=round(c.get("teaser_start", c["start"]), 2),
+                             style=clip_style, layout=clip_layout,
+                             topic=c.get("topic", "visual"),
+                             anti_copyright=bool(o.get("anti_copyright", False)),
+                             status="queued", version=0)
+                    job["clips"].append(c)
+                    futures.append((renders.submit(ctx.bind(make), c, list(words)), c))
+                job["ai"] = {"model": model, "tokens": tokens, "note": "", "log": notes[-5:]}
+                save(job)
+        except Exception as e:
+            traceback.print_exc()
+            notes.append(f"Visual motion analysis failed: {safe.friendly(e, 100)}")
     if futures:
         _set(job, stage="Finishing the clips", progress=max(job["progress"], 0.92))
     _wait_for_clips(job, futures, began, renders._max_workers)

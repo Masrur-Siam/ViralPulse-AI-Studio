@@ -642,3 +642,63 @@ def _fix_caption_words(words: list, title: str = "", lang: str = "") -> list:
         if new:
             fixed.append(dict(w, w=new))
     return fixed or words
+
+
+VISUAL_SCHEMA = {
+    "type": "ARRAY",
+    "items": {
+        "type": "OBJECT",
+        "properties": {
+            "index": {"type": "INTEGER"},
+            "title": {"type": "STRING"},
+            "hook": {"type": "STRING"},
+            "description": {"type": "STRING"},
+            "hashtags": {"type": "ARRAY", "items": {"type": "STRING"}},
+        },
+        "required": ["index", "title", "hook", "description", "hashtags"],
+    },
+}
+
+
+def caption_visual_clips(clips: list, video_title: str = "", uploader: str = "", user_prompt: str = "") -> tuple:
+    """Generates punchy titles, teaser hooks, and hashtags for visual motion clips using minimal AI tokens."""
+    if not clips:
+        return clips, {}
+
+    base_title = video_title or "Viral Highlight"
+    for i, c in enumerate(clips, 1):
+        c.setdefault("title", f"{base_title} #{i}")
+        c.setdefault("hook", f"Wait for this #{i}!")
+        c.setdefault("description", f"Best action moment from {base_title}.")
+        c.setdefault("hashtags", ["#viral", "#shorts", "#action", "#fyp"])
+        c.setdefault("reason", "Visual motion cluster")
+        c.setdefault("recommended_layout", "zoom")
+        c.setdefault("recommended_style", "hype")
+
+    lines = [f"{i}: {round(c['start'], 1)}s to {round(c['end'], 1)}s" for i, c in enumerate(clips)]
+    prompt = (
+        "Short-form clip scout for a video without spoken words but with visual action/motion.\n"
+        f"Title: {_safe(video_title or 'Highlight')}\n"
+        f"Channel: {_safe(uploader or 'Creator')}\n"
+        + (f"User focus: {_safe(user_prompt)}\n" if user_prompt else "")
+        + "Return a JSON list with 'index' (0-based integer matching input line), 'title' (punchy, <50 chars), 'hook' (3-5 words teaser), 'description' (1 sentence), 'hashtags' (3-4 items).\n"
+        + "\n".join(lines)
+    )
+
+    try:
+        data, model, u = ask_ai(prompt, VISUAL_SCHEMA, purpose="Visual clip titles")
+        if isinstance(data, list):
+            for item in data:
+                idx = item.get("index")
+                if isinstance(idx, int) and 0 <= idx < len(clips):
+                    if item.get("title"):
+                        clips[idx]["title"] = str(item["title"])[:100]
+                    if item.get("hook"):
+                        clips[idx]["hook"] = str(item["hook"])[:60]
+                    if item.get("description"):
+                        clips[idx]["description"] = str(item["description"])[:500]
+                    if isinstance(item.get("hashtags"), list):
+                        clips[idx]["hashtags"] = [str(t) for t in item["hashtags"][:5]]
+        return clips, {"model": model, "tokens": (u.get("prompt_tokens", 0) + u.get("completion_tokens", 0))}
+    except Exception:
+        return clips, {}

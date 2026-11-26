@@ -1420,8 +1420,12 @@ function drawAdd(variant) {
         <input id="o_prompt" placeholder="e.g. Focus on funniest jokes, clutch gaming moments, business advice, debate highlights..." style="width:100%;box-sizing:border-box;padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid var(--line);border-radius:8px;color:#fff;font-size:13px" value="${esc(c?.prompt || "")}">
         <span class="hint" style="font-size:11px;color:var(--faint);margin-top:4px;display:block">Tell the AI exactly what style, topic, or moments to find.</span>
       </div>
-      <div class="ob"><div class="ot">Protection</div>
+      <div class="ob"><div class="ot">Viral Hook &amp; Protection</div>
         <label class="ck" style="font-size:12px;margin-top:4px;cursor:pointer;display:flex;align-items:flex-start;gap:6px;">
+          <input type="checkbox" id="o_teaser_hook" checked>
+          <span><b>3-Second Teaser Hook (With Transition)</b><small style="display:block;color:var(--faint);font-size:11px;margin-top:2px;">Duplicates best 3s hook moment to start, followed by smooth flash transition</small></span>
+        </label>
+        <label class="ck" style="font-size:12px;margin-top:8px;cursor:pointer;display:flex;align-items:flex-start;gap:6px;">
           <input type="checkbox" id="o_anticopyright" ${c?.anti_copyright ? "checked" : ""}>
           <span><b>Anti-Copyright Bypass</b><small style="display:block;color:var(--faint);font-size:11px;margin-top:2px;">Audio micro-shift, frame shift & strip tags</small></span>
         </label>
@@ -1485,7 +1489,7 @@ document.addEventListener("keydown", e => {
 const targetCreator = () => creatorId() || $("#o_creator")?.value || "";
 function jobOptions() {
   const n = id => { const v = $(id).value; return v === "" ? null : Number(v); };
-  const o = {max_clips:n("#o_max"), min_len:n("#o_min"), max_len:n("#o_maxlen"), style:$("#o_style").value, layout:$("#o_layout").value, quality:n("#o_quality"), anti_copyright:!!$("#o_anticopyright")?.checked, prompt:$("#o_prompt")?.value.trim() || ""};
+  const o = {max_clips:n("#o_max"), min_len:n("#o_min"), max_len:n("#o_maxlen"), style:$("#o_style").value, layout:$("#o_layout").value, quality:n("#o_quality"), teaser_hook:!!$("#o_teaser_hook")?.checked, anti_copyright:!!$("#o_anticopyright")?.checked, prompt:$("#o_prompt")?.value.trim() || ""};
   if (n("#o_from") !== null) o.range_start = n("#o_from") * 60;
   if (n("#o_to") !== null) o.range_end = n("#o_to") * 60;
   return o;
@@ -2194,6 +2198,12 @@ function drawClipDlg(full) {
     : c.status === "error" ? `<div class="err" style="padding:20px;text-align:center">${esc(c.error || "Could not make this clip.")}</div>`
     : `<span class="making">${c.status === "rendering" ? "Making this clip…" : "Waiting its turn…"}</span>`;
   if (full) {
+    const sStart = Number(c.start), sEnd = Number(c.end), cDur = Math.max(0.1, sEnd - sStart);
+    let tStart = c.teaser_start != null ? Number(c.teaser_start) : sStart;
+    if (tStart < sStart || tStart > Math.max(sStart, sEnd - 3)) tStart = sStart;
+    const hookLeftPct = Math.max(0, Math.min(100, ((tStart - sStart) / cDur * 100))).toFixed(1);
+    const hookWidthPct = Math.min(100, Math.max(5, (3.0 / cDur * 100))).toFixed(1);
+
     dlg.innerHTML = `<div class="editor"><div class="stage" id="stage">${stage}</div>
       <div class="panel">
         <div class="job-head" style="margin:0"><div>
@@ -2204,8 +2214,41 @@ function drawClipDlg(full) {
         <label class="f">Big text / Hook (Overlay Banner)<input data-f="hook" value="${esc(c.hook)}"></label>
         <div class="two"><label class="f">Caption style<select data-f="style">${opts(S.status.styles, c.style)}</select></label>
           <label class="f">Layout<select data-f="layout">${opts(S.status.layouts, c.layout)}</select></label></div>
-        <div class="two"><label class="f">Start (seconds)<input data-f="start" type="number" step="0.5" value="${c.start}"></label>
-          <label class="f">End (seconds)<input data-f="end" type="number" step="0.5" value="${c.end}"></label></div>
+        <div class="two"><label class="f">Start (seconds)<input data-f="start" id="c_start" type="number" step="0.5" value="${c.start}"></label>
+          <label class="f">End (seconds)<input data-f="end" id="c_end" type="number" step="0.5" value="${c.end}"></label></div>
+
+        <!-- 3-Second Teaser Hook & Interactive Timeline -->
+        <div style="background:var(--bg3,#161922);border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <label class="ck" style="cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;">
+              <input type="checkbox" data-f="teaser_hook" id="c_teaser_hook" ${c.teaser_hook !== false ? "checked" : ""}>
+              <span>3-Second Teaser Hook (Prepend + Transition)</span>
+            </label>
+            <span id="hook_time_lbl" style="font-size:11px;font-weight:bold;color:var(--pri,#ff5c00);">${tStart.toFixed(1)}s - ${(tStart + 3.0).toFixed(1)}s</span>
+          </div>
+
+          <!-- Visual Timeline Bar -->
+          <div id="hook_timeline_bar" style="position:relative;width:100%;height:34px;background:#0d0f14;border-radius:6px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;overflow:hidden;" title="Click anywhere on the timeline to place the 3-second hook">
+            <div style="position:absolute;left:0;top:0;right:0;bottom:0;display:flex;justify-content:space-between;padding:0 6px;align-items:center;pointer-events:none;opacity:0.4;font-size:10px;font-family:monospace;">
+              <span>${c.start}s</span>
+              <span>Timeline: Click or Drag Hook</span>
+              <span>${c.end}s</span>
+            </div>
+            <div id="hook_timeline_box" style="position:absolute;top:2px;bottom:2px;left:${hookLeftPct}%;width:${hookWidthPct}%;background:linear-gradient(135deg, #f59e0b, #ef4444);border-radius:4px;border:1px solid #fef08a;box-shadow:0 0 10px rgba(239,68,68,0.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:bold;user-select:none;pointer-events:none;transition:left 0.08s ease;">
+              🎯 3s Hook
+            </div>
+          </div>
+
+          <!-- Hook Time Manual Input and Action Buttons -->
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+            <label class="f" style="flex:1;margin:0;"><span style="font-size:11px;opacity:0.8;">Hook Start Time (sec)</span>
+              <input data-f="teaser_start" id="c_teaser_start" type="number" step="0.1" min="${c.start}" max="${Math.max(c.start, c.end - 3)}" value="${tStart.toFixed(1)}">
+            </label>
+            <button type="button" class="btn sm" id="btn_preview_hook" style="height:32px;align-self:flex-end;">▶ Preview Hook</button>
+            <button type="button" class="btn sm ghost" id="btn_auto_hook" style="height:32px;align-self:flex-end;" title="Reset to auto-detected peak moment">⚡ Auto Peak</button>
+          </div>
+        </div>
+
         <label class="ck" style="margin-top:8px;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;">
           <input type="checkbox" data-f="anti_copyright" ${c.anti_copyright ? "checked" : ""}><span><b>Anti-Copyright Bypass</b> <small style="opacity:.7">Audio shift, frame shift &amp; strip tags</small></span></label>
         <h3>YouTube Shorts SEO</h3>
@@ -2224,9 +2267,54 @@ function drawClipDlg(full) {
           ${c.status === "done" ? `<a class="btn" href="${m}${esc(c.file)}?download=1" download="${esc(safeDlName(c.title || c.hook || c.id))}">${ic("down")}Download</a>` : ""}
           <button class="btn" data-act="copy" data-j="${j.id}" data-c="${esc(c.id)}">${ic("copy")}Copy post text</button></div>
       </div></div>`;
+    setupTimelineEvents(c);
   } else if (D.sig !== sig) $("#stage").innerHTML = stage;
   D.sig = sig;
   put($("#dposts"), postPills(c));
+}
+
+function setupTimelineEvents(c) {
+  const bar = $("#hook_timeline_bar"), inp = $("#c_teaser_start"), box = $("#hook_timeline_box"), lbl = $("#hook_time_lbl");
+  if (!bar || !inp) return;
+  const update = sec => {
+    const s = Number($("#c_start")?.value ?? c.start), e = Number($("#c_end")?.value ?? c.end), dur = Math.max(0.1, e - s);
+    const clamped = Math.min(Math.max(s, sec), Math.max(s, e - 3.0));
+    inp.value = clamped.toFixed(1);
+    if (box) {
+      box.style.left = Math.max(0, Math.min(100, ((clamped - s) / dur * 100))).toFixed(1) + "%";
+      box.style.width = Math.min(100, Math.max(5, (3.0 / dur * 100))).toFixed(1) + "%";
+    }
+    if (lbl) lbl.textContent = `${clamped.toFixed(1)}s - ${(clamped + 3.0).toFixed(1)}s`;
+  };
+  let dragging = false;
+  bar.addEventListener("mousedown", e => {
+    dragging = true;
+    const rect = bar.getBoundingClientRect(), pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const s = Number($("#c_start")?.value ?? c.start), e_ = Number($("#c_end")?.value ?? c.end);
+    update(s + pct * (e_ - s));
+  });
+  window.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const rect = bar.getBoundingClientRect(), pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const s = Number($("#c_start")?.value ?? c.start), e_ = Number($("#c_end")?.value ?? c.end);
+    update(s + pct * (e_ - s));
+  });
+  window.addEventListener("mouseup", () => { dragging = false; });
+  inp.addEventListener("input", () => update(Number(inp.value)));
+
+  $("#btn_preview_hook")?.addEventListener("click", () => {
+    const v = $("#stage video");
+    if (!v) return;
+    const s = Number($("#c_start")?.value ?? c.start);
+    const t = Number(inp.value);
+    v.currentTime = c.teaser_hook ? 0 : Math.max(0, t - s);
+    v.play();
+  });
+  $("#btn_auto_hook")?.addEventListener("click", () => {
+    const origPeak = c.teaser_start != null ? c.teaser_start : c.start;
+    update(Number(origPeak));
+    toast("Reset hook to peak moment", "ok");
+  });
 }
 $("#clipdlg").addEventListener("close", () => { $("#clipdlg").innerHTML = ""; D.jid = null; });
 $("#clipdlg").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });

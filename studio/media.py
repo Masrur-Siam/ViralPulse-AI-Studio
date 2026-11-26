@@ -294,22 +294,117 @@ def probe(path: Path) -> dict:
     v = next((s for s in data["streams"] if s["codec_type"] == "video"), None)
     if not v:
         raise RuntimeError("This file has no video track.")
-    if not any(s["codec_type"] == "audio" for s in data["streams"]):
-        raise RuntimeError("This file has no audio track, so there is nothing to transcribe.")
+    has_audio = any(s["codec_type"] == "audio" for s in data.get("streams", []))
     w, h = int(v["width"]), int(v["height"])
     if w * h > 3840 * 2160 or w < 16 or h < 16:
         raise RuntimeError("This video's resolution isn't supported (4K is the largest).")
     rot = str((v.get("side_data_list") or [{}])[0].get("rotation", "0"))
     if rot.lstrip("-") in ("90", "270"):
         w, h = h, w
-    return {"width": w, "height": h, "duration": float(data["format"]["duration"])}
+    dur = float(data.get("format", {}).get("duration", 0) or v.get("duration", 0) or 0)
+    return {"width": w, "height": h, "duration": dur, "has_audio": has_audio}
 
 
-def extract_audio(src: Path, wav: Path):
+def extract_audio(src: Path, wav: Path, duration: float = 0):
     # first_pts=0 pads any gap before the audio starts, so second 0 of the wav is second 0 of the file
     # -t: never more audio than the longest video allowed, whatever the file claims about itself
-    run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-vn", "-ac", "1", "-ar", "16000", "-t", str(int(config.MAX_VIDEO_HOURS * 3600) + 60),
-         "-af", "aresample=async=1:first_pts=0", "-c:a", "pcm_s16le", str(wav)])
+    try:
+        run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-vn", "-ac", "1", "-ar", "16000",
+             "-t", str(int(config.MAX_VIDEO_HOURS * 3600) + 60),
+             "-af", "aresample=async=1:first_pts=0", "-c:a", "pcm_s16le", str(wav)])
+        if wav.exists() and wav.stat().st_size > 100:
+            return
+    except Exception:
+        pass
+    # If the video has no audio track or extraction failed, generate a silent wav so downstream works seamlessly
+    if duration <= 0:
+        try:
+            duration = probe(src).get("duration", 0)
+        except Exception:
+            duration = 10.0
+    samples = max(16000, int(duration * 16000))
+    sf.write(str(wav), np.zeros(samples, dtype=np.int16), 16000)
+
+
+def find_motion_segments(video_path: Path, duration: float, min_len: int = 15, max_len: int = 60, max_clips: int = 6) -> list[dict]:
+    """Analyze screen movement / visual scene changes when audio is missing or has no speech."""
+    if duration <= 0:
+        try:
+            duration = probe(video_path).get("duration", 0)
+        except Exception:
+            duration = 60.0
+    if duration < 5.0:
+        return []
+
+    # Run fast scene detection (fps=5, low res, gt(scene, 0.05))
+    pts_times = []
+    try:
+        cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(video_path),
+               "-vf", "fps=5,scale=320:180,select=gt(scene\\,0.05),showinfo",
+               "-f", "null", "-"]
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+        pts_times = [float(m) for m in re.findall(r"pts_time:\s*([\d\.]+)", p.stderr)]
+    except Exception:
+        pts_times = []
+
+    # Target clip duration: average between min_len and max_len (e.g. 30s)
+    target_dur = max(min_len, min(max_len, int(min(duration, 35))))
+    clips = []
+
+    if pts_times:
+        # Bin motion detections into 1-second buckets
+        num_secs = int(duration) + 2
+        motion_bins = np.zeros(num_secs, dtype=np.float32)
+        for t in pts_times:
+            sec = int(t)
+            if 0 <= sec < num_secs:
+                motion_bins[sec] += 1.0
+
+        # Score sliding windows of length target_dur
+        step = 5
+        scored_windows = []
+        for s in range(0, max(1, int(duration - min_len)), step):
+            e = min(duration, s + target_dur)
+            if e - s < min_len:
+                break
+            score = float(motion_bins[s:int(e)].sum())
+            if score > 0:
+                # Find peak second in this window for teaser hook
+                local_slice = motion_bins[s:max(s + 1, int(e - 3))]
+                peak_offset = int(np.argmax(local_slice)) if len(local_slice) > 0 else 0
+                teaser_start = round(s + peak_offset, 2)
+                scored_windows.append({"start": round(s, 2), "end": round(e, 2), "score": score, "teaser_start": teaser_start})
+
+        # Sort windows by motion score descending and pick non-overlapping ones
+        scored_windows.sort(key=lambda x: x["score"], reverse=True)
+        for cand in scored_windows:
+            if len(clips) >= max_clips:
+                break
+            # Ensure at least 10s gap with existing clips
+            if not any(not (cand["end"] <= c["start"] + 5 or cand["start"] >= c["end"] - 5) for c in clips):
+                # Normalize score to 70-98 range
+                cand["score"] = min(98, max(75, int(75 + cand["score"] * 3)))
+                cand["topic"] = "action"
+                clips.append(cand)
+
+    # Fallback if no scene changes were detected (e.g. static or continuous camera flow)
+    if not clips:
+        step = max(target_dur, duration / max(1, max_clips))
+        curr = 0.0
+        while curr + min_len <= duration and len(clips) < max_clips:
+            e = min(duration, curr + target_dur)
+            t_start = round(curr + min(2.0, max(0.0, (e - curr - 3) / 2)), 2)
+            clips.append({
+                "start": round(curr, 2),
+                "end": round(e, 2),
+                "score": 85,
+                "teaser_start": t_start,
+                "topic": "highlight"
+            })
+            curr += step
+
+    clips.sort(key=lambda c: c["start"])
+    return clips
 
 
 def load_audio(wav: Path) -> np.ndarray:

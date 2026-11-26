@@ -250,6 +250,14 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     layout, fg_h, hook_y, cap_y = geometry(src_w, src_h, clip.get("layout", "blur"))
     ass = build_ass(words, start, end, clip.get("hook", ""), clip.get("style", "bounce"),
                     clip.get("highlight_words", []), hook_y, cap_y)
+    teaser_hook = bool(clip.get("teaser_hook", False))
+    teaser_start = float(clip.get("teaser_start", start))
+    if teaser_start < start or teaser_start > max(start, end - 3.0):
+        teaser_start = start
+    teaser_ass = ""
+    if teaser_hook:
+        teaser_ass = build_ass(words, teaser_start, teaser_start + 3.0, clip.get("hook", ""), clip.get("style", "bounce"),
+                               clip.get("highlight_words", []), hook_y, cap_y)
     # The clip is made in a short work folder and moved into place afterwards. The caption step of ffmpeg cannot
     # open files whose full path is longer than 260 characters on Windows, which a data folder deep inside other
     # folders easily reaches. Inside the work folder every name is short and relative (a drive colon would also
@@ -257,18 +265,27 @@ def render_clip(src: Path, out_dir: Path, name: str, clip: dict, words: list, sr
     work = Path(tempfile.mkdtemp(prefix="pk"))
     anti_copyright = bool(clip.get("anti_copyright", False))
     try:
-        return _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass, anti_copyright=anti_copyright)
+        return _render_in(work, src, out_dir, name, start, end, layout, fg_h, ass,
+                          anti_copyright=anti_copyright, teaser_hook=teaser_hook,
+                          teaser_start=teaser_start, teaser_ass=teaser_ass)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
 
-def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str, anti_copyright: bool = False) -> dict:
+def _has_audio(path: Path) -> bool:
+    try:
+        out = subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-select_streams", "a", str(path)],
+                             capture_output=True, text=True, creationflags=NO_WINDOW)
+        return bool(out.stdout.strip())
+    except Exception:
+        return False
+
+
+def _encode_segment(work: Path, src: Path, seg_name: str, s: float, e: float, layout: str, fg_h: int,
+                    ass_str: str, anti_copyright: bool, has_audio: bool):
     global _qsv_ok
-    (work / f"{name}.ass").write_text(ass, encoding="utf-8")
-    (work / "f").mkdir()
-    for f in config.FONTS_DIR.glob("*.ttf"):
-        shutil.copyfile(f, work / "f" / f.name)
-    fc = _filter(layout, fg_h) + f"[v0]ass={name}.ass:fontsdir=f[v]"
+    (work / f"{seg_name}.ass").write_text(ass_str, encoding="utf-8")
+    fc = _filter(layout, fg_h) + f"[v0]ass={seg_name}.ass:fontsdir=f[v]"
     if anti_copyright:
         fc += f";[v]scale=iw*1.02:ih*1.02,crop={W}:{H},eq=contrast=1.03:brightness=0.01:saturation=1.05[v_safe]"
         out_v = "[v_safe]"
@@ -278,9 +295,18 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
         out_v = "[v]"
         audio_af = "loudnorm=I=-14:TP=-1.5:LRA=11"
         meta_args = []
-    base = ["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.2f}", "-t", f"{end - start:.2f}", "-i", str(src),
-            "-filter_complex", fc, "-map", out_v, "-map", "0:a:0", "-af", audio_af,
-            "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart", *meta_args, "-threads", "0", "-pix_fmt"]
+    dur = max(0.1, e - s)
+    inputs = ["-ss", f"{s:.2f}", "-t", f"{dur:.2f}", "-i", str(src)]
+    if not has_audio:
+        inputs += ["-f", "lavfi", "-t", f"{dur:.2f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
+        audio_map = ["-map", "1:a"]
+    else:
+        audio_map = ["-map", "0:a:0"]
+
+    base = ["ffmpeg", "-y", "-v", "error"] + inputs + [
+            "-filter_complex", fc, "-map", out_v] + audio_map + [
+            "-af", audio_af, "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
+            "-movflags", "+faststart", *meta_args, "-threads", "0", "-pix_fmt"]
     encoders = []
     encoders.append(("nvenc", ["yuv420p", "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "22"]))
     if _qsv_ok is not False:
@@ -288,7 +314,7 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
     encoders.append(("x264", ["yuv420p", "-c:v", "libx264", "-crf", "21", "-preset", "veryfast"]))
     err = None
     for label, enc in encoders:
-        p = subprocess.run(base + enc + [f"{name}.mp4"], cwd=work, capture_output=True, text=True,
+        p = subprocess.run(base + enc + [f"{seg_name}.mp4"], cwd=work, capture_output=True, text=True,
                            encoding="utf-8", errors="replace", creationflags=NO_WINDOW, timeout=RENDER_SECONDS)
         if p.returncode == 0:
             if label == "qsv":
@@ -299,6 +325,39 @@ def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layo
             _qsv_ok = False
     else:
         raise RuntimeError(f"Render failed: {err}")
+
+
+def _render_in(work: Path, src: Path, out_dir: Path, name: str, start, end, layout, fg_h, ass: str,
+               anti_copyright: bool = False, teaser_hook: bool = False, teaser_start: float = 0.0,
+               teaser_ass: str = "") -> dict:
+    (work / "f").mkdir(exist_ok=True)
+    for f in config.FONTS_DIR.glob("*.ttf"):
+        shutil.copyfile(f, work / "f" / f.name)
+    has_audio = _has_audio(src)
+
+    if teaser_hook and (end - start) > 3.0:
+        # 1. Render 3s teaser
+        _encode_segment(work, src, "teaser", teaser_start, teaser_start + 3.0, layout, fg_h, teaser_ass, anti_copyright, has_audio)
+        # 2. Render main clip
+        _encode_segment(work, src, "main", start, end, layout, fg_h, ass, anti_copyright, has_audio)
+        # 3. Join with mandatory white flash transition between teaser hook and main clip
+        join_fc = "[0:v][1:v]xfade=transition=fadewhite:duration=0.3:offset=2.7[v];[0:a][1:a]acrossfade=d=0.3[a]"
+        join_cmd = ["ffmpeg", "-y", "-v", "error", "-i", "teaser.mp4", "-i", "main.mp4",
+                    "-filter_complex", join_fc, "-map", "[v]", "-map", "[a]",
+                    "-c:v", "libx264", "-crf", "21", "-preset", "veryfast",
+                    "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart",
+                    f"{name}.mp4"]
+        p = subprocess.run(join_cmd, cwd=work, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", creationflags=NO_WINDOW, timeout=RENDER_SECONDS)
+        if p.returncode != 0:
+            if (work / "main.mp4").exists():
+                shutil.copyfile(work / "main.mp4", work / f"{name}.mp4")
+            else:
+                raise RuntimeError(f"Transition join failed: {p.stderr[-800:]}")
+    else:
+        _encode_segment(work, src, name, start, end, layout, fg_h, ass, anti_copyright, has_audio)
+
+    (work / f"{name}.ass").write_text(ass, encoding="utf-8")
     cover_t = min(1.2, (end - start) / 2)
     run(["ffmpeg", "-y", "-v", "error", "-ss", f"{cover_t:.2f}", "-i", f"{name}.mp4", "-frames:v", "1",
          "-q:v", "3", f"{name}.jpg"], cwd=work)
