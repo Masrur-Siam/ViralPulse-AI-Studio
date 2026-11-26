@@ -6,7 +6,7 @@ from pathlib import Path
 
 def make_shortcut():
     root = Path(__file__).resolve().parent
-    vbs_path = root / "ViralPulse AI Studio.vbs"
+    bat_path = root / "Launch_ViralPulse.bat"
     ico_path = root / "web" / "brand" / "app.ico"
     candidates = [
         Path.home() / "OneDrive" / "Desktop",
@@ -21,10 +21,10 @@ def make_shortcut():
     ps_script = f"""
     $WshShell = New-Object -comObject WScript.Shell
     $Shortcut = $WshShell.CreateShortcut('{str(shortcut_path)}')
-    $Shortcut.TargetPath = '{str(vbs_path)}'
+    $Shortcut.TargetPath = '{str(bat_path)}'
     $Shortcut.WorkingDirectory = '{str(root)}'
     $Shortcut.IconLocation = '{str(ico_path)},0'
-    $Shortcut.Description = 'ViralPulse AI Studio - AI Video Clipping & Editing Software'
+    $Shortcut.Description = 'ViralPulse AI Studio - AI Video Clipping & Editing Software (Browser Edition)'
     $Shortcut.Save()
     """
     cmd = ["powershell", "-NoProfile", "-Command", ps_script]

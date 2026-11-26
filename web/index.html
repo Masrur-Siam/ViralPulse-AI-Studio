@@ -978,6 +978,9 @@ function startTour() {
   closePops();
   if (S.view !== "overview") go("overview");
   // sel: what the step points at.  side: it lives in the sidebar (opened for the step on phones).  dock: where the card sits on phones.
+  try { localStorage.setItem("viralpulse_tour_seen", "1"); } catch {}
+  S.status.tour = false;
+  send("/api/settings", {tour_done: true}, "PUT").catch(() => {});
   const steps = [
     {t: "Welcome to ViralPulse AI Studio", x: "Developed exclusively by Masrur Siam. Turn long YouTube videos, Twitch & Kick streams into viral, high-engagement captioned shorts automatically.",
      chips: [["link", "Paste a link"], ["scissors", "Viral AI Clips", 1], ["radio", "Live Streams"], ["send", "Auto Post"]]},
@@ -1071,7 +1074,12 @@ function startTour() {
     cancelAnimationFrame(raf); removeEventListener("keydown", keys, true); removeEventListener("resize", tick);
     app.classList.remove("open"); root.classList.remove("on"); ring.classList.remove("on");
     setTimeout(() => root.remove(), 300);
-    if (!saved) { saved = true; S.status.tour = false; send("/api/settings", {tour_done: true}, "PUT").catch(() => {}); }
+    if (!saved) {
+      saved = true;
+      S.status.tour = false;
+      try { localStorage.setItem("viralpulse_tour_seen", "1"); } catch {}
+      send("/api/settings", {tour_done: true}, "PUT").catch(() => {});
+    }
     if (S.view === "overview") $("#url")?.focus({preventScroll: true});
   }
   const move = by => { const n = i + by; if (n < 0) return; if (n >= steps.length) return close(); i = n; show(); };
@@ -2963,13 +2971,16 @@ $("#main").addEventListener("scroll", () => $(".topbar").classList.toggle("stuck
   } catch {}
   loop();
   const tourSeen = localStorage.getItem("viralpulse_tour_seen");
-  if (!tourSeen && !$("#formdlg")?.open) {
-    setTimeout(() => {
-      startTour();
-      try { localStorage.setItem("viralpulse_tour_seen", "1"); } catch {}
-    }, 800);
-  } else if (S.status.tour && !$("#formdlg")?.open) {
-    setTimeout(startTour, 500);
+  if (!tourSeen && S.status.tour && !$("#formdlg")?.open) {
+    try { localStorage.setItem("viralpulse_tour_seen", "1"); } catch {}
+    S.status.tour = false;
+    send("/api/settings", {tour_done: true}, "PUT").catch(() => {});
+    setTimeout(startTour, 800);
+  } else if (tourSeen && S.status.tour) {
+    S.status.tour = false;
+    send("/api/settings", {tour_done: true}, "PUT").catch(() => {});
+  } else if (!tourSeen && !S.status.tour) {
+    try { localStorage.setItem("viralpulse_tour_seen", "1"); } catch {}
   }
   checkNew(true);
   setInterval(async () => { try { S.status = await api("/api/status"); drawShell(); if (S.view === "overview") drawOverview(); checkNew(); } catch {} }, 15000);
