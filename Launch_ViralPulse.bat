@@ -15,7 +15,7 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 :: Automatically close any old instance holding port 8765
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8765 ^| findstr LISTENING') do (
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr /i :8765') do (
     taskkill /F /PID %%a >nul 2>&1
 )
 
